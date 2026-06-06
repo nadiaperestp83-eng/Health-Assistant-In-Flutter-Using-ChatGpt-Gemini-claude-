@@ -19,7 +19,7 @@ class APIs {
   static Future<String> getAnswerGemini(String question) async {
     try {
       final model = GenerativeModel(
-        model: 'gemini-2.0-flash',
+        model: 'gemini-1.5-flash',
         apiKey: apiKey,
       );
       final res = await model.generateContent(
@@ -34,7 +34,7 @@ class APIs {
       return res.text ?? 'Sem resposta';
     } catch (e) {
       log('getAnswerGeminiE: $e');
-      return 'Algo deu errado (tente novamente)';
+      return 'Erro Gemini: $e';
     }
   }
 
@@ -60,11 +60,11 @@ class APIs {
       return data['content'][0]['text'];
     } catch (e) {
       log('getAnswerClaudeE: $e');
-      return 'Algo deu errado (tente novamente)';
+      return 'Erro Claude: $e';
     }
   }
 
-  // ── GROQ (Llama 3.3) ─────────────────────────────
+  // ── GROQ ─────────────────────────────────────────
   static Future<String> getAnswerGroq(String question) async {
     try {
       final res = await post(
@@ -85,7 +85,7 @@ class APIs {
       return data['choices'][0]['message']['content'];
     } catch (e) {
       log('getAnswerGroqE: $e');
-      return 'Algo deu errado (tente novamente)';
+      return 'Erro Groq: $e';
     }
   }
 
@@ -93,7 +93,6 @@ class APIs {
   static Future<AIResponse> getAnswer(String question) async {
     final q = question.toLowerCase();
 
-    // Código e bugs → Groq (rápido)
     if (q.contains('código') || q.contains('code') ||
         q.contains('dart') || q.contains('python') ||
         q.contains('flutter') || q.contains('função') ||
@@ -102,7 +101,6 @@ class APIs {
       return AIResponse(text: await getAnswerGroq(question), provider: 'Groq');
     }
 
-    // Textos longos e análise → Claude
     if (q.contains('explica') || q.contains('redija') ||
         q.contains('resumo') || q.contains('analise') ||
         q.contains('escreva') || q.contains('texto') ||
@@ -111,7 +109,6 @@ class APIs {
       return AIResponse(text: await getAnswerClaude(question), provider: 'Claude');
     }
 
-    // Perguntas gerais → Gemini
     log('Router → Gemini');
     return AIResponse(text: await getAnswerGemini(question), provider: 'Gemini');
   }
