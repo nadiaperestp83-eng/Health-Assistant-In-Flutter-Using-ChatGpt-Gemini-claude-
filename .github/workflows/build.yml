@@ -18,10 +18,10 @@ jobs:
 
       - name: Configurar chaves
         run: |
-          sed -i "s/String apiKey = '';/String apiKey = '${{ secrets.GEMINI_KEY }}';/" lib/helper/global.dart
-          sed -i "s/String gptKey = '';/String gptKey = '${{ secrets.GPT_KEY }}';/" lib/helper/global.dart
-          sed -i "s/String claudeKey = '';/String claudeKey = '${{ secrets.CLAUDE_KEY }}';/" lib/helper/global.dart
-          sed -i "s/String xiaoAiKey = '';/String xiaoAiKey = '${{ secrets.XIAOAI_KEY }}';/" lib/helper/global.dart
+          sed -i "s/String apiKey = '';/String apiKey = 'AQ.Ab8RN6KlCBReFr9m_ryowVQpqTmwHh6UoRRfkaGAjgLEbGz5mA';/" lib/helper/global.dart
+          sed -i "s/String gptKey = '';/String gptKey = '';/" lib/helper/global.dart
+          sed -i "s/String claudeKey = '';/String claudeKey = '';/" lib/helper/global.dart
+          sed -i "s/String xiaoAiKey = '';/String xiaoAiKey = '';/" lib/helper/global.dart
 
       - name: Get packages
         run: flutter pub get
