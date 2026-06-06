@@ -4,9 +4,6 @@ const appName = 'Ai Assistant';
 
 late Size mq;
 
-// Gemini (carregada pelo AppWrite)
-String apiKey = '';
-
-// Novas chaves
-String claudeKey = '';
-String groqKey = '';
+String apiKey = 'NAO_INJETADO';
+String claudeKey = 'NAO_INJETADO';
+String groqKey = 'NAO_INJETADO';
