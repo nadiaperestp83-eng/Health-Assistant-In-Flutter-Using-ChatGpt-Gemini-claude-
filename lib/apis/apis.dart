@@ -7,9 +7,15 @@ import 'package:translator_plus/translator_plus.dart';
 
 import '../helper/global.dart';
 
+class AIResponse {
+  final String text;
+  final String provider;
+  AIResponse({required this.text, required this.provider});
+}
+
 class APIs {
 
-  // ── GEMINI (ativo) ──────────────────────────────
+  // ── GEMINI ──────────────────────────────────────
   static Future<String> getAnswerGemini(String question) async {
     try {
       final model = GenerativeModel(
@@ -28,31 +34,6 @@ class APIs {
       return res.text ?? 'Sem resposta';
     } catch (e) {
       log('getAnswerGeminiE: $e');
-      return 'Algo deu errado (tente novamente)';
-    }
-  }
-
-  // ── CHATGPT ─────────────────────────────────────
-  static Future<String> getAnswerGPT(String question) async {
-    try {
-      final res = await post(
-        Uri.parse('https://api.openai.com/v1/chat/completions'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $gptKey',
-        },
-        body: jsonEncode({
-          'model': 'gpt-4o-mini',
-          'max_tokens': 2000,
-          'messages': [
-            {'role': 'user', 'content': question},
-          ],
-        }),
-      );
-      final data = jsonDecode(res.body);
-      return data['choices'][0]['message']['content'];
-    } catch (e) {
-      log('getAnswerGPTE: $e');
       return 'Algo deu errado (tente novamente)';
     }
   }
@@ -83,18 +64,17 @@ class APIs {
     }
   }
 
-  // ── XIAOAI / MIMO ────────────────────────────────
-  // Formato compatível com OpenAI — confirme o endpoint na sua conta Xiaomi
-  static Future<String> getAnswerXiaoAi(String question) async {
+  // ── GROQ (Llama 3.3) ─────────────────────────────
+  static Future<String> getAnswerGroq(String question) async {
     try {
       final res = await post(
-        Uri.parse('https://api.mimo.xiaomi.com/v1/chat/completions'),
+        Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer $xiaoAiKey',
+          'Authorization': 'Bearer $groqKey',
         },
         body: jsonEncode({
-          'model': 'mimo-6b',
+          'model': 'llama-3.3-70b-versatile',
           'max_tokens': 2000,
           'messages': [
             {'role': 'user', 'content': question},
@@ -104,37 +84,36 @@ class APIs {
       final data = jsonDecode(res.body);
       return data['choices'][0]['message']['content'];
     } catch (e) {
-      log('getAnswerXiaoAiE: $e');
+      log('getAnswerGroqE: $e');
       return 'Algo deu errado (tente novamente)';
     }
   }
 
-  // ── ROTEADOR INTELIGENTE ─────────────────────────
-  // Detecta tipo de pergunta e escolhe o melhor provider
-  static Future<String> getAnswer(String question) async {
+  // ── ROTEADOR ─────────────────────────────────────
+  static Future<AIResponse> getAnswer(String question) async {
     final q = question.toLowerCase();
 
-    // Código → GPT
+    // Código e bugs → Groq (rápido)
     if (q.contains('código') || q.contains('code') ||
         q.contains('dart') || q.contains('python') ||
         q.contains('flutter') || q.contains('função') ||
         q.contains('erro') || q.contains('bug')) {
-      log('Router → GPT');
-      return getAnswerGPT(question);
+      log('Router → Groq');
+      return AIResponse(text: await getAnswerGroq(question), provider: 'Groq');
     }
 
-    // Texto longo, redação, análise → Claude
+    // Textos longos e análise → Claude
     if (q.contains('explica') || q.contains('redija') ||
         q.contains('resumo') || q.contains('analise') ||
         q.contains('escreva') || q.contains('texto') ||
         q.length > 300) {
       log('Router → Claude');
-      return getAnswerClaude(question);
+      return AIResponse(text: await getAnswerClaude(question), provider: 'Claude');
     }
 
-    // Perguntas rápidas e gerais → Gemini (gratuito, padrão)
+    // Perguntas gerais → Gemini
     log('Router → Gemini');
-    return getAnswerGemini(question);
+    return AIResponse(text: await getAnswerGemini(question), provider: 'Gemini');
   }
 
   // ── IMAGENS ──────────────────────────────────────
