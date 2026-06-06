@@ -34,8 +34,13 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
+      - name: Listar APKs gerados
+        if: always()
+        run: find . -name "*.apk" 2>/dev/null || echo "Nenhum APK encontrado"
+
       - name: Upload APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: ai-assistant-apk
+          path: "**/*.apk"
