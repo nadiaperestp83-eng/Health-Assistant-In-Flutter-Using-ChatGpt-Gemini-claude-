@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:get/get_navigation/src/root/get_material_app.dart';
 
 import 'apis/app_write.dart';
-import 'helper/ad_helper.dart';
 import 'helper/global.dart';
 import 'helper/pref.dart';
 import 'screen/splash_screen.dart';
@@ -11,14 +10,9 @@ import 'screen/splash_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // init hive
   await Pref.initialize();
 
-  // for app write initialization
   AppWrite.init();
-
-  // for initializing facebook ads sdk
-  AdHelper.init();
 
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await SystemChrome.setPreferredOrientations(
@@ -35,10 +29,7 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       title: appName,
       debugShowCheckedModeBanner: false,
-
       themeMode: Pref.defaultTheme,
-
-      //dark
       darkTheme: ThemeData(
           useMaterial3: false,
           brightness: Brightness.dark,
@@ -48,8 +39,6 @@ class MyApp extends StatelessWidget {
             titleTextStyle:
                 TextStyle(fontSize: 20, fontWeight: FontWeight.w500),
           )),
-
-      //light
       theme: ThemeData(
           useMaterial3: false,
           appBarTheme: const AppBarTheme(
@@ -60,19 +49,15 @@ class MyApp extends StatelessWidget {
             titleTextStyle: TextStyle(
                 color: Colors.blue, fontSize: 20, fontWeight: FontWeight.w500),
           )),
-
-      //
       home: const SplashScreen(),
     );
   }
 }
 
 extension AppTheme on ThemeData {
-  //light text color
   Color get lightTextColor =>
       brightness == Brightness.dark ? Colors.white70 : Colors.black54;
 
-  //button color
   Color get buttonColor =>
       brightness == Brightness.dark ? Colors.cyan.withOpacity(.5) : Colors.blue;
 }
