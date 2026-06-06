@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:dart_openai/dart_openai.dart';
 import 'package:flutter/material.dart';
-import 'package:gallery_saver_updated/gallery_saver.dart';
+import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart';
 import 'package:path_provider/path_provider.dart';
@@ -45,27 +45,21 @@ class ImageController extends GetxController {
 
   void downloadImage() async {
     try {
-      //To show loading
       MyDialog.showLoadingDialog();
 
       log('url: $url');
 
       final bytes = (await get(Uri.parse(url.value))).bodyBytes;
       final dir = await getTemporaryDirectory();
-
       final file = await File('${dir.path}/ai_image.png').writeAsBytes(bytes);
 
       log('filePath: ${file.path}');
-      //save image to gallery
-      await GallerySaver.saveImage(file.path, albumName: appName)
-          .then((success) {
-        //hide loading
-        Get.back();
 
+      await ImageGallerySaverPlus.saveFile(file.path).then((result) {
+        Get.back();
         MyDialog.success('Image Downloaded to Gallery!');
       });
     } catch (e) {
-      //hide loading
       Get.back();
       MyDialog.error('Something Went Wrong (Try again in sometime)!');
       log('downloadImageE: $e');
@@ -74,7 +68,6 @@ class ImageController extends GetxController {
 
   void shareImage() async {
     try {
-      //To show loading
       MyDialog.showLoadingDialog();
 
       log('url: $url');
@@ -85,14 +78,11 @@ class ImageController extends GetxController {
 
       log('filePath: ${file.path}');
 
-      //hide loading
       Get.back();
 
       await Share.shareXFiles([XFile(file.path)],
-          text:
-              'Check out this Amazing Image created by Ai Assistant App by Harsh H. Rajpurohit');
+          text: 'Check out this Amazing Image created by Ai Assistant App!');
     } catch (e) {
-      //hide loading
       Get.back();
       MyDialog.error('Something Went Wrong (Try again in sometime)!');
       log('downloadImageE: $e');
@@ -100,7 +90,6 @@ class ImageController extends GetxController {
   }
 
   Future<void> searchAiImage() async {
-    //if prompt is not empty
     if (textC.text.trim().isNotEmpty) {
       status.value = Status.loading;
 
@@ -108,7 +97,6 @@ class ImageController extends GetxController {
 
       if (imageList.isEmpty) {
         MyDialog.error('Something went wrong (Try again in sometime)');
-
         return;
       }
 
