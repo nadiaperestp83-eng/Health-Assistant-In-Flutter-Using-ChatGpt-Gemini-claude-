@@ -19,14 +19,22 @@ class ChatController extends GetxController {
       list.add(Message(msg: '', msgType: MessageType.bot));
       _scrollDown();
 
-      final res = await APIs.getAnswer(textC.text);
+      try {
+        final res = await APIs.getAnswer(textC.text);
+        list.removeLast();
+        list.add(Message(
+          msg: res.text.isEmpty ? 'Resposta vazia — provider: ${res.provider}' : res.text,
+          msgType: MessageType.bot,
+          aiProvider: res.provider,
+        ));
+      } catch (e) {
+        list.removeLast();
+        list.add(Message(
+          msg: 'Exceção no controller: $e',
+          msgType: MessageType.bot,
+        ));
+      }
 
-      list.removeLast();
-      list.add(Message(
-        msg: res.text,
-        msgType: MessageType.bot,
-        aiProvider: res.provider,
-      ));
       _scrollDown();
       textC.text = '';
     } else {
