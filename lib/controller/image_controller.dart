@@ -1,7 +1,7 @@
+import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 
-import 'package:dart_openai/dart_openai.dart';
 import 'package:flutter/material.dart';
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:get/get.dart';
@@ -10,58 +10,51 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../apis/apis.dart';
-import '../helper/global.dart';
 import '../helper/my_dialog.dart';
 
 enum Status { none, loading, complete }
 
 class ImageController extends GetxController {
   final textC = TextEditingController();
-
   final status = Status.none.obs;
-
   final url = ''.obs;
-
-  final imageList = <String>[].obs;
+  final imageBase64 = ''.obs;
 
   Future<void> createAIImage() async {
-    if (textC.text.trim().isNotEmpty) {
-      OpenAI.apiKey = apiKey;
-      status.value = Status.loading;
-
-      OpenAIImageModel image = await OpenAI.instance.image.create(
-        prompt: textC.text,
-        n: 1,
-        size: OpenAIImageSize.size512,
-        responseFormat: OpenAIImageResponseFormat.url,
-      );
-      url.value = image.data[0].url.toString();
-
-      status.value = Status.complete;
-    } else {
-      MyDialog.info('Provide some beautiful image description!');
+    if (textC.text.trim().isEmpty) {
+      MyDialog.info('Descreva a imagem que deseja criar!');
+      return;
     }
+
+    status.value = Status.loading;
+
+    final result = await APIs.generateImage(textC.text);
+
+    if (result.isEmpty) {
+      status.value = Status.none;
+      MyDialog.error('Não foi possível gerar a imagem. Tente novamente!');
+      return;
+    }
+
+    imageBase64.value = result;
+    status.value = Status.complete;
   }
 
   void downloadImage() async {
     try {
       MyDialog.showLoadingDialog();
 
-      log('url: $url');
-
-      final bytes = (await get(Uri.parse(url.value))).bodyBytes;
+      final bytes = base64Decode(imageBase64.value);
       final dir = await getTemporaryDirectory();
       final file = await File('${dir.path}/ai_image.png').writeAsBytes(bytes);
 
-      log('filePath: ${file.path}');
-
       await ImageGallerySaverPlus.saveFile(file.path).then((result) {
         Get.back();
-        MyDialog.success('Image Downloaded to Gallery!');
+        MyDialog.success('Imagem salva na galeria!');
       });
     } catch (e) {
       Get.back();
-      MyDialog.error('Something Went Wrong (Try again in sometime)!');
+      MyDialog.error('Erro ao salvar imagem!');
       log('downloadImageE: $e');
     }
   }
@@ -70,41 +63,18 @@ class ImageController extends GetxController {
     try {
       MyDialog.showLoadingDialog();
 
-      log('url: $url');
-
-      final bytes = (await get(Uri.parse(url.value))).bodyBytes;
+      final bytes = base64Decode(imageBase64.value);
       final dir = await getTemporaryDirectory();
       final file = await File('${dir.path}/ai_image.png').writeAsBytes(bytes);
-
-      log('filePath: ${file.path}');
 
       Get.back();
 
       await Share.shareXFiles([XFile(file.path)],
-          text: 'Check out this Amazing Image created by Ai Assistant App!');
+          text: 'Imagem criada com IA!');
     } catch (e) {
       Get.back();
-      MyDialog.error('Something Went Wrong (Try again in sometime)!');
-      log('downloadImageE: $e');
-    }
-  }
-
-  Future<void> searchAiImage() async {
-    if (textC.text.trim().isNotEmpty) {
-      status.value = Status.loading;
-
-      imageList.value = await APIs.searchAiImages(textC.text);
-
-      if (imageList.isEmpty) {
-        MyDialog.error('Something went wrong (Try again in sometime)');
-        return;
-      }
-
-      url.value = imageList.first;
-
-      status.value = Status.complete;
-    } else {
-      MyDialog.info('Provide some beautiful image description!');
+      MyDialog.error('Erro ao compartilhar imagem!');
+      log('shareImageE: $e');
     }
   }
 }
