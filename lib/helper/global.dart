@@ -9,3 +9,4 @@ String claudeKey = '';     // Claude
 String groqKey = '';       // Groq
 String deepseekKey = '';   // DeepSeek
 String openrouterKey = ''; // OpenRouter
+String openaiKey = ''; // OpenAI DALL-E
