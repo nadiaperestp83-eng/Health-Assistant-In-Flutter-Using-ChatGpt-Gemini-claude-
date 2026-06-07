@@ -4,7 +4,7 @@ import 'package:get/get.dart';
 import '../helper/global.dart';
 import '../helper/pref.dart';
 import '../widget/custom_loading.dart';
-import 'feature/chatbot/chatbot_feature.dart';
+import 'feature/chatbot_feature.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
