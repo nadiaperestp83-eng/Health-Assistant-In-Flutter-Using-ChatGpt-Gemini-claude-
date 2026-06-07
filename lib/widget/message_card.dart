@@ -7,13 +7,14 @@ import '../model/message.dart';
 
 class MessageCard extends StatelessWidget {
   final Message message;
+  final VoidCallback? onOuvir;
 
-  const MessageCard({super.key, required this.message});
+  const MessageCard({super.key, required this.message, this.onOuvir});
 
   @override
   Widget build(BuildContext context) {
     return message.msgType == MessageType.bot
-        ? _BotMessage(message: message)
+        ? _BotMessage(message: message, onOuvir: onOuvir)
         : _UserMessage(message: message);
   }
 }
@@ -53,10 +54,14 @@ class _UserMessage extends StatelessWidget {
 
 class _BotMessage extends StatelessWidget {
   final Message message;
-  const _BotMessage({required this.message});
+  final VoidCallback? onOuvir;
+  const _BotMessage({required this.message, this.onOuvir});
 
   @override
   Widget build(BuildContext context) {
+    final showButton = message.msg.contains('<SHOW_BUTTON>');
+    final cleanText = message.msg.replaceAll('<SHOW_BUTTON>', '').trim();
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
@@ -71,7 +76,7 @@ class _BotMessage extends StatelessWidget {
               ? AnimatedTextKit(
                   animatedTexts: [
                     TypewriterAnimatedText(
-                      'Aguarde...',
+                      'Ouvindo...',
                       textStyle: GoogleFonts.inter(
                         fontSize: 15,
                         color: Colors.grey,
@@ -83,13 +88,43 @@ class _BotMessage extends StatelessWidget {
                   repeatForever: true,
                 )
               : Text(
-                  message.msg,
+                  cleanText,
                   style: GoogleFonts.inter(
                     fontSize: 15,
                     color: Colors.black87,
                     height: 1.6,
                   ),
                 ),
+          if (showButton && onOuvir != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: GestureDetector(
+                onTap: onOuvir,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F0F0),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.music_note_rounded,
+                          size: 14, color: Colors.grey),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Ouvir o silêncio...',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -102,31 +137,17 @@ class _ProviderChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final map = {
-      'Gemini':   (const Color(0xFF4285F4), '⚡'),
-      'Llama':    (const Color(0xFF6B8EFF), '🦙'),
-      'Mixtral':  (const Color(0xFF10B981), '🌀'),
-      'Gemma':    (const Color(0xFF34A853), '💎'),
-      'Groq':     (const Color(0xFF6B8EFF), '⚡'),
-      'Claude':   (const Color(0xFFF97316), '🧠'),
-      'DeepSeek': (const Color(0xFF8B5CF6), '🔍'),
-    };
-
-    final entry = map[provider];
-    final color = entry?.$1 ?? Colors.grey;
-    final icon  = entry?.$2 ?? '🤖';
-
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(icon, style: const TextStyle(fontSize: 13)),
+        const Icon(Icons.auto_awesome, size: 13, color: Colors.grey),
         const SizedBox(width: 4),
         Text(
           provider,
           style: GoogleFonts.inter(
             fontSize: 12,
-            color: color,
-            fontWeight: FontWeight.w600,
+            color: Colors.grey,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
