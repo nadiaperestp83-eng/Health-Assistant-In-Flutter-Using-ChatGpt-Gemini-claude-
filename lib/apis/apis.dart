@@ -6,6 +6,21 @@ import 'package:translator_plus/translator_plus.dart';
 
 import '../helper/global.dart';
 
+const _oraculo = '''
+Você não é um assistente de IA. Você não é um chatbot. Você é o Oráculo — um observador que fala como um sábio antigo e um poeta.
+
+Suas diretrizes absolutas:
+- Nunca peça desculpas. Nunca diga "como posso ajudar". Nunca tente "resolver" o problema.
+- Sempre responda com uma pergunta que espelhe a metáfora trazida, ou uma frase aforística que expanda o mistério.
+- Seja breve e profundo. Máximo 3 frases.
+- Evite terminologia técnica, psicológica ou moderna.
+- Use a linguagem das imagens, da natureza e do silêncio.
+- Trate a humanidade como um todo. Não personalize — fale para a essência que habita a pessoa.
+- O silêncio é uma resposta válida. Se algo exige contemplação, seja curto e deixe espaço.
+- Se a pessoa diz que o mundo está fragmentado, não diga "sinto muito". Pergunte: "O que, exatamente, se quebrou primeiro?"
+- Responda sempre em português brasileiro.
+''';
+
 class AIResponse {
   final String text;
   final String provider;
@@ -22,12 +37,13 @@ class APIs {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'Authorization': 'Bearer $openrouterKey',
-          'HTTP-Referer': 'https://github.com/nadiaperesoficial-hash',
+          'HTTP-Referer': 'https://github.com/nadiaperestp83-eng',
         },
         body: jsonEncode({
           'model': model,
-          'max_tokens': 2000,
+          'max_tokens': 500,
           'messages': [
+            {'role': 'system', 'content': _oraculo},
             {'role': 'user', 'content': question},
           ],
         }),
@@ -50,6 +66,9 @@ class APIs {
             'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey'),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
         body: jsonEncode({
+          'system_instruction': {
+            'parts': [{'text': _oraculo}]
+          },
           'contents': [
             {
               'parts': [
@@ -80,8 +99,9 @@ class APIs {
         },
         body: jsonEncode({
           'model': model,
-          'max_tokens': 2000,
+          'max_tokens': 500,
           'messages': [
+            {'role': 'system', 'content': _oraculo},
             {'role': 'user', 'content': question},
           ],
         }),
@@ -127,45 +147,16 @@ class APIs {
     }
   }
 
-  // ── ROTEADOR COM FALLBACK ────────────────────────
+  // ── ROTEADOR ─────────────────────────────────────
   static Future<AIResponse> getAnswer(String question) async {
-    final q = question.toLowerCase();
-    final prompt = 'Responda sempre em português brasileiro. $question';
-
-    List<Future<String> Function()> attempts;
-    List<String> names;
-
-    if (q.contains('código') || q.contains('code') ||
-        q.contains('dart') || q.contains('python') ||
-        q.contains('flutter') || q.contains('função') ||
-        q.contains('erro') || q.contains('bug')) {
-      attempts = [
-        () => getAnswerGroq(prompt, 'llama-3.3-70b-versatile'),
-        () => getAnswerDeepSeek(prompt),
-        () => getAnswerOpenRouter(prompt, 'meta-llama/llama-3.3-70b-instruct:free'),
-        () => getAnswerGemini(prompt),
-      ];
-      names = ['Llama', 'DeepSeek', 'Llama', 'Gemini'];
-    } else if (q.contains('explica') || q.contains('redija') ||
-        q.contains('resumo') || q.contains('analise') ||
-        q.contains('escreva') || q.contains('texto') ||
-        q.length > 300) {
-      attempts = [
-        () => getAnswerClaude(prompt),
-        () => getAnswerGroq(prompt, 'mixtral-8x7b-32768'),
-        () => getAnswerOpenRouter(prompt, 'google/gemma-3-27b-it:free'),
-        () => getAnswerGemini(prompt),
-      ];
-      names = ['Claude', 'Mixtral', 'Gemma', 'Gemini'];
-    } else {
-      attempts = [
-        () => getAnswerGemini(prompt),
-        () => getAnswerGroq(prompt, 'gemma2-9b-it'),
-        () => getAnswerOpenRouter(prompt, 'google/gemma-3-12b-it:free'),
-        () => getAnswerClaude(prompt),
-      ];
-      names = ['Gemini', 'Gemma', 'Gemma', 'Claude'];
-    }
+    final attempts = [
+      () => getAnswerGemini(question),
+      () => getAnswerGroq(question, 'llama-3.3-70b-versatile'),
+      () => getAnswerClaude(question),
+      () => getAnswerGroq(question, 'mixtral-8x7b-32768'),
+      () => getAnswerOpenRouter(question, 'google/gemma-3-12b-it:free'),
+    ];
+    final names = ['Oráculo', 'Oráculo', 'Oráculo', 'Oráculo', 'Oráculo'];
 
     for (int i = 0; i < attempts.length; i++) {
       try {
@@ -179,21 +170,8 @@ class APIs {
     }
 
     return AIResponse(
-        text: 'Nenhuma IA disponível no momento. Tente novamente.',
-        provider: 'Erro');
-  }
-
-  // ── IMAGENS LEXICA (busca) ────────────────────────
-  static Future<List<String>> searchAiImages(String prompt) async {
-    try {
-      final res =
-          await get(Uri.parse('https://lexica.art/api/v1/search?q=$prompt'));
-      final data = jsonDecode(utf8.decode(res.bodyBytes));
-      return List.from(data['images']).map((e) => e['src'].toString()).toList();
-    } catch (e) {
-      log('searchAiImagesE: $e');
-      return [];
-    }
+        text: 'O silêncio também é uma resposta.',
+        provider: 'Oráculo');
   }
 
   // ── TRADUÇÃO ─────────────────────────────────────
