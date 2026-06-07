@@ -14,13 +14,13 @@ class AIResponse {
 
 class APIs {
 
-  // ── OPENROUTER (acesso a 400+ modelos) ───────────
+  // ── OPENROUTER ───────────────────────────────────
   static Future<String> getAnswerOpenRouter(String question, String model) async {
     try {
       final res = await post(
         Uri.parse('https://openrouter.ai/api/v1/chat/completions'),
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Authorization': 'Bearer $openrouterKey',
           'HTTP-Referer': 'https://github.com/nadiaperesoficial-hash',
         },
@@ -32,10 +32,10 @@ class APIs {
           ],
         }),
       );
-      final data = jsonDecode(res.body);
+      final body = utf8.decode(res.bodyBytes);
+      final data = jsonDecode(body);
       if (data['choices'] == null) return '';
-      final text = data['choices'][0]['message']['content'] ?? '';
-      return text;
+      return data['choices'][0]['message']['content'] ?? '';
     } catch (e) {
       log('getAnswerOpenRouterE: $e');
       return '';
@@ -48,7 +48,7 @@ class APIs {
       final res = await post(
         Uri.parse(
             'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json; charset=utf-8'},
         body: jsonEncode({
           'contents': [
             {
@@ -59,7 +59,8 @@ class APIs {
           ]
         }),
       );
-      final data = jsonDecode(res.body);
+      final body = utf8.decode(res.bodyBytes);
+      final data = jsonDecode(body);
       if (data['candidates'] == null) return '';
       return data['candidates'][0]['content']['parts'][0]['text'] ?? '';
     } catch (e) {
@@ -74,7 +75,7 @@ class APIs {
       final res = await post(
         Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'Authorization': 'Bearer $groqKey',
         },
         body: jsonEncode({
@@ -85,7 +86,8 @@ class APIs {
           ],
         }),
       );
-      final data = jsonDecode(res.body);
+      final body = utf8.decode(res.bodyBytes);
+      final data = jsonDecode(body);
       if (data['choices'] == null) return '';
       return data['choices'][0]['message']['content'] ?? '';
     } catch (e) {
@@ -104,13 +106,34 @@ class APIs {
     return getAnswerOpenRouter(question, 'deepseek/deepseek-chat');
   }
 
+  // ── CLOUDFLARE WORKERS AI (geração de imagem) ────
+  static Future<String> generateImage(String prompt) async {
+    try {
+      final res = await post(
+        Uri.parse(
+            'https://api.cloudflare.com/client/v4/accounts/344ae813a0f97087c8b9d03eeb5dbfb5/ai/run/@cf/black-forest-labs/flux-1-schnell'),
+        headers: {
+          'Authorization': 'Bearer $cloudflareKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({'prompt': prompt}),
+      );
+      final data = jsonDecode(utf8.decode(res.bodyBytes));
+      if (data['result'] == null) return '';
+      return data['result']['image'] ?? '';
+    } catch (e) {
+      log('generateImageE: $e');
+      return '';
+    }
+  }
+
   // ── ROTEADOR COM FALLBACK ────────────────────────
   static Future<AIResponse> getAnswer(String question) async {
     final q = question.toLowerCase();
     final prompt = 'Responda sempre em português brasileiro. $question';
 
-    // Define ordem de tentativas por tipo de pergunta
     List<Future<String> Function()> attempts;
+    List<String> names;
 
     if (q.contains('código') || q.contains('code') ||
         q.contains('dart') || q.contains('python') ||
@@ -122,6 +145,7 @@ class APIs {
         () => getAnswerOpenRouter(prompt, 'meta-llama/llama-3.3-70b-instruct:free'),
         () => getAnswerGemini(prompt),
       ];
+      names = ['Llama', 'DeepSeek', 'Llama', 'Gemini'];
     } else if (q.contains('explica') || q.contains('redija') ||
         q.contains('resumo') || q.contains('analise') ||
         q.contains('escreva') || q.contains('texto') ||
@@ -132,6 +156,7 @@ class APIs {
         () => getAnswerOpenRouter(prompt, 'google/gemma-3-27b-it:free'),
         () => getAnswerGemini(prompt),
       ];
+      names = ['Claude', 'Mixtral', 'Gemma', 'Gemini'];
     } else {
       attempts = [
         () => getAnswerGemini(prompt),
@@ -139,29 +164,14 @@ class APIs {
         () => getAnswerOpenRouter(prompt, 'google/gemma-3-12b-it:free'),
         () => getAnswerClaude(prompt),
       ];
+      names = ['Gemini', 'Gemma', 'Gemma', 'Claude'];
     }
-
-    // Tenta cada provider na ordem
-    final providerNames = {
-      0: q.contains('código') || q.contains('code') || q.contains('dart') ? 'Llama' : q.length > 100 ? 'Claude' : 'Gemini',
-    };
 
     for (int i = 0; i < attempts.length; i++) {
       try {
         final result = await attempts[i]();
         if (result.isNotEmpty && !result.startsWith('Erro')) {
-          String name = '';
-          if (i == 0) {
-            if (q.contains('código') || q.contains('dart') || q.contains('flutter')) name = 'Llama';
-            else if (q.contains('escreva') || q.contains('texto')) name = 'Claude';
-            else name = 'Gemini';
-          } else if (i == 1) {
-            if (q.contains('código')) name = 'DeepSeek';
-            else name = 'Mixtral';
-          } else {
-            name = 'Gemma';
-          }
-          return AIResponse(text: result, provider: name);
+          return AIResponse(text: result, provider: names[i]);
         }
       } catch (e) {
         log('Tentativa $i falhou: $e');
@@ -173,12 +183,12 @@ class APIs {
         provider: 'Erro');
   }
 
-  // ── IMAGENS ──────────────────────────────────────
+  // ── IMAGENS LEXICA (busca) ────────────────────────
   static Future<List<String>> searchAiImages(String prompt) async {
     try {
       final res =
           await get(Uri.parse('https://lexica.art/api/v1/search?q=$prompt'));
-      final data = jsonDecode(res.body);
+      final data = jsonDecode(utf8.decode(res.bodyBytes));
       return List.from(data['images']).map((e) => e['src'].toString()).toList();
     } catch (e) {
       log('searchAiImagesE: $e');
