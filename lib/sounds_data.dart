@@ -1,7 +1,10 @@
+// lib/sounds_data.dart
+
 final List<String> trilhasRefugio = [
-  "https://freesound.org/data/previews/554/554674_10672016-lq.mp3",
-  "https://freesound.org/data/previews/829/829030_15494489-lq.mp3",
-  "https://freesound.org/data/previews/834/834397_13337926-lq.mp3",
-  "https://freesound.org/data/previews/572/572245_11701550-lq.mp3",
-  "https://freesound.org/data/previews/423/423946_7749872-lq.mp3",
+  // Som de mar (estável e sem autenticação)
+  "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", // Apenas para teste, substitua por um som de natureza abaixo:
+  "https://actions.google.com/sounds/v1/weather/rain_heavy_with_thunder.ogg",
+  "https://actions.google.com/sounds/v1/nature/ocean_waves.ogg",
+  "https://actions.google.com/sounds/v1/nature/forest_night.ogg",
+  "https://actions.google.com/sounds/v1/ambiences/park_birds.ogg",
 ];
