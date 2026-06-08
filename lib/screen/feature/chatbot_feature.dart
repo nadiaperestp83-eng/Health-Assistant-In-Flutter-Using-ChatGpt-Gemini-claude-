@@ -32,7 +32,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   bool _isListening = false;
   bool _ttsEnabled = true;
   bool _isPlayingMusic = false;
-  bool _isSpeaking = false; 
+  bool _isSpeaking = false;
 
   final _tabs = [
     {'icon': Icons.chat_bubble_rounded, 'label': 'Chat'},
@@ -47,18 +47,12 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     _initTts();
   }
 
-  // ─────────────────────────────────────────────
-  // Init TTS nativo
-  // ─────────────────────────────────────────────
   void _initTts() async {
-    // 1. Define o idioma base
     await _tts.setLanguage('pt-BR');
-    await _tts.setSharedInstance(true); 
+    await _tts.setSharedInstance(true);
 
-    // 2. Busca a lista de vozes UMA ÚNICA VEZ
     List<dynamic> voices = await _tts.getVoices;
 
-    // 3. Aplica o filtro para evitar o sotaque espanhol e pegar voz de alta qualidade
     var ptNeuralVoice = voices.firstWhere(
       (v) => v['locale'].toString().startsWith('pt-BR') && 
              (v['name'].toString().toLowerCase().contains('neural') || 
@@ -69,24 +63,17 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
       ),
     );
 
-    // 4. Aplica a voz encontrada e configurações de fala
     await _tts.setVoice(Map<String, String>.from(ptNeuralVoice));
     await _tts.setSpeechRate(0.5);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
   }
 
-  // ─────────────────────────────────────────────
-  // PROTOCOLO DE PRESENÇA
-  // Detecta [ALTA] ou [BAIXA] e direciona o áudio
-  // ─────────────────────────────────────────────
   Future<void> _falarComPresenca(String textoRaw) async {
     if (!_ttsEnabled || textoRaw.isEmpty) return;
 
-    // 1. Extrair tag
     final bool isAltaPresenca = textoRaw.trimLeft().startsWith('[ALTA]');
 
-    // 2. Limpar tag + marcadores de botão
     final cleanText = textoRaw
         .replaceAll('[ALTA]', '')
         .replaceAll('[BAIXA]', '')
@@ -96,11 +83,9 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
     if (cleanText.isEmpty) return;
 
-    // 3. Parar qualquer voz em andamento
     await _tts.stop();
     await _player.stop();
 
-    // 4. Direcionar
     if (isAltaPresenca) {
       await _falarElevenLabs(cleanText);
     } else {
@@ -108,7 +93,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     }
   }
 
-  // Voz ElevenLabs (alta presença)
   Future<void> _falarElevenLabs(String texto) async {
     final Uint8List? audioBytes = await ElevenLabsService.sintetizar(texto);
 
@@ -132,7 +116,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     }
   }
 
-  // TTS nativo Android (baixa presença ou fallback)
   Future<void> _falarNativo(String texto) async {
     setState(() => _isSpeaking = true);
     await _tts.speak(texto);
@@ -141,9 +124,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     });
   }
 
-  // ─────────────────────────────────────────────
-  // Música ambiente (refúgio)
-  // ─────────────────────────────────────────────
   void _ouvirSilencio() async {
     if (_isPlayingMusic) {
       await _player.stop();
@@ -166,9 +146,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     }
   }
 
-  // ─────────────────────────────────────────────
-  // STT (microfone)
-  // ─────────────────────────────────────────────
   void _startListening() async {
     final available = await _stt.initialize();
     if (available) {
@@ -201,9 +178,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     setState(() => _isListening = false);
   }
 
-  // ─────────────────────────────────────────────
-  // Enviar pergunta via botão
-  // ─────────────────────────────────────────────
   void _enviar() {
     _c.askQuestion().then((_) {
       final msgs = _c.list
@@ -292,7 +266,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
                         ]))])),
             ) : null,
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFEEEEEE)))),
+        decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFEEEEEEE)))),
         child: BottomNavigationBar(
           currentIndex: _selectedTab,
           onTap: (i) => setState(() => _selectedTab = i),
@@ -321,19 +295,24 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   }
 }
 
+// CLASSE MyCustomSource CORRIGIDA (CORAÇÃO DO ELEVENLABS)
 class MyCustomSource extends StreamAudioSource {
   final Uint8List _buffer;
+  
   MyCustomSource(this._buffer) : super(tag: 'ElevenLabsTTS');
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
     start ??= 0;
-    end   ??= _buffer.length;
+    end ??= _buffer.length;
+    
+    final chunk = _buffer.sublist(start, end);
+    
     return StreamAudioResponse(
       sourceLength: _buffer.length,
-      contentLength: end - start,
+      contentLength: chunk.length,
       offset: start,
-      stream: Stream.value(_buffer.sublist(start, end)),
+      stream: Stream.value(chunk),  // ← CORREÇÃO: Stream.value do chunk
       contentType: 'audio/mpeg',
     );
   }
