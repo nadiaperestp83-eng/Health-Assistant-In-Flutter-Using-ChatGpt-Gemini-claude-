@@ -31,6 +31,7 @@ jobs:
           sed -i "s/String openrouterKey = '';/String openrouterKey = '${{ secrets.OPENROUTER_KEY }}';/" lib/helper/global.dart
           sed -i "s/String cloudflareKey = '';/String cloudflareKey = '${{ secrets.CLOUDFLARE_KEY }}';/" lib/helper/global.dart
           sed -i "s/String openaiKey = '';/String openaiKey = '${{ secrets.OPENAI_KEY }}';/" lib/helper/global.dart
+          sed -i "s/String elevenlabsKey = '';/String elevenlabsKey = '${{ secrets.ELEVENLABS_API_KEY }}';/" lib/helper/global.dart
       - name: Get packages
         run: flutter pub get
 
