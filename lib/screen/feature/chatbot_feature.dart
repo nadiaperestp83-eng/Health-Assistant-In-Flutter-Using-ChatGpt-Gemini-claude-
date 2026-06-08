@@ -11,7 +11,7 @@ import '../../controller/chat_controller.dart';
 import '../../helper/global.dart';
 import '../../widget/message_card.dart';
 import '../../sounds_data.dart';
-import '../../services/elevenlabs_service.dart';
+import '../../elevenlabs_service.dart';
 import 'image_feature.dart';
 import 'translator_feature.dart';
 
