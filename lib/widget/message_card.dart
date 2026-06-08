@@ -8,9 +8,8 @@ import '../model/message.dart';
 
 class MessageCard extends StatelessWidget {
   final Message message;
-  final VoidCallback? onOuvir;
 
-  const MessageCard({super.key, required this.message, this.onOuvir});
+  const MessageCard({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -67,31 +66,49 @@ class _BotMessageState extends State<_BotMessage> {
     super.dispose();
   }
 
-  void _toggleAudio(BuildContext context) async {
-    if (_isPlaying) {
-      await _audioPlayer.pause();
-    } else {
-      // Toca o som de exemplo
-      await _audioPlayer.play(UrlSource("https://actions.google.com/sounds/v1/nature/ocean_waves.ogg"));
-      
-      // Abre o painel de Refúgio
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (_) => Container(
-          height: MediaQuery.of(context).size.height * 0.8,
-          decoration: const BoxDecoration(
-            color: Color(0xFF0F1219),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-          ),
-          child: const Center(
-            child: Text("Modo Refúgio Ativo", style: TextStyle(color: Colors.white, fontSize: 20)),
-          ),
+  void _abrirRefugio(BuildContext context) async {
+    // 1. Inicia o áudio
+    await _audioPlayer.play(UrlSource("https://actions.google.com/sounds/v1/nature/ocean_waves.ogg"));
+    
+    // 2. Atualiza estado para mostrar que está tocando
+    setState(() => _isPlaying = true);
+
+    // 3. Abre o painel modal
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        height: MediaQuery.of(context).size.height * 0.8,
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F1219),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         ),
-      );
-    }
-    setState(() => _isPlaying = !_isPlaying);
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            const Text("Refuge Mode", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            const Spacer(),
+            // Aqui entraria sua Mandala com animação
+            const Icon(Icons.hub, size: 200, color: Colors.tealAccent), 
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () {
+                _audioPlayer.pause();
+                setState(() => _isPlaying = false);
+                Navigator.pop(context);
+              },
+            ),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+    
+    // Quando fechar o modal, pausa o áudio
+    _audioPlayer.pause();
+    setState(() => _isPlaying = false);
   }
 
   @override
@@ -104,56 +121,28 @@ class _BotMessageState extends State<_BotMessage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (widget.message.aiProvider != null)
-            Padding(padding: const EdgeInsets.only(bottom: 8), child: _ProviderChip(provider: widget.message.aiProvider!)),
-          widget.message.msg.isEmpty
-              ? AnimatedTextKit(
-                  animatedTexts: [TypewriterAnimatedText('Ouvindo...', textStyle: GoogleFonts.inter(fontSize: 15, color: Colors.grey, height: 1.5), speed: const Duration(milliseconds: 80))],
-                  repeatForever: true,
-                )
-              : Text(cleanText, style: GoogleFonts.inter(fontSize: 15, color: Colors.black87, height: 1.6)),
+          Text(cleanText, style: GoogleFonts.inter(fontSize: 15, color: Colors.black87, height: 1.6)),
           if (showButton)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => _toggleAudio(context),
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(color: const Color(0xFFF0F0F0), borderRadius: BorderRadius.circular(20)),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(_isPlaying ? Icons.pause_circle_filled : Icons.music_note_rounded, size: 14, color: Colors.grey),
-                        const SizedBox(width: 6),
-                        Text(_isPlaying ? 'Ouvindo...' : 'Ouvir o silêncio...', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey)),
-                      ],
-                    ),
+              child: InkWell(
+                onTap: () => _abrirRefugio(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(color: const Color(0xFFF0F0F0), borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(_isPlaying ? Icons.pause_circle_filled : Icons.music_note_rounded, size: 14, color: Colors.grey),
+                      const SizedBox(width: 6),
+                      Text('Ouvir o silêncio...', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey)),
+                    ],
                   ),
                 ),
               ),
             ),
         ],
       ),
-    );
-  }
-}
-
-class _ProviderChip extends StatelessWidget {
-  final String provider;
-  const _ProviderChip({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        const Icon(Icons.auto_awesome, size: 13, color: Colors.grey),
-        const SizedBox(width: 4),
-        Text(provider, style: GoogleFonts.inter(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
-      ],
     );
   }
 }
