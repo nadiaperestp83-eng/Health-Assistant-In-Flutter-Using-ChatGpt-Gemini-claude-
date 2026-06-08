@@ -51,10 +51,23 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   }
 
   void _initTts() async {
-    await _tts.setLanguage('pt-BR');
-    await _tts.setSpeechRate(0.5);
-    await _tts.setVolume(1.0);
-    await _tts.setPitch(1.0);
+  await _tts.setLanguage('pt-BR');
+  await _tts.setSpeechRate(0.5);
+  await _tts.setVolume(1.0);
+  await _tts.setPitch(1.0);
+
+  // O SEGREDO PARA A VOZ NEURAL:
+  // Listamos as vozes disponíveis e escolhemos uma que seja "Neural" ou "High Quality"
+  List<dynamic> voices = await _tts.getVoices;
+  var neuralVoice = voices.firstWhere(
+    (voice) => voice['name'].toString().contains('neural') || 
+               voice['name'].toString().contains('high-quality'),
+    orElse: () => voices.first, // Fallback se não achar
+  );
+
+  await _tts.setVoice(Map<String, String>.from(neuralVoice));
+}
+
   }
 
   // ─────────────────────────────────────────────
