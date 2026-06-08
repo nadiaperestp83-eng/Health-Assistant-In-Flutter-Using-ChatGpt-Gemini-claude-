@@ -66,76 +66,117 @@ class _BotMessageState extends State<_BotMessage> {
     super.dispose();
   }
 
-  void _abrirRefugio(BuildContext context) async {
-    // 1. Inicia o áudio
-    await _audioPlayer.play(UrlSource("https://actions.google.com/sounds/v1/nature/ocean_waves.ogg"));
-    
-    // 2. Atualiza estado para mostrar que está tocando
-    setState(() => _isPlaying = true);
-
-    // 3. Abre o painel modal
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        decoration: const BoxDecoration(
-          color: Color(0xFF0F1219),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            const Text("Refuge Mode", style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-            const Spacer(),
-            // Aqui entraria sua Mandala com animação
-            const Icon(Icons.hub, size: 200, color: Colors.tealAccent), 
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
-              onPressed: () {
-                _audioPlayer.pause();
-                setState(() => _isPlaying = false);
-                Navigator.pop(context);
-              },
-            ),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    );
-    
-    // Quando fechar o modal, pausa o áudio
-    _audioPlayer.pause();
-    setState(() => _isPlaying = false);
+  void _ouvirSilencio() async {
+    if (_isPlaying) {
+      await _audioPlayer.stop();
+      setState(() => _isPlaying = false);
+      return;
+    }
+    try {
+      final sons = [
+        "https://actions.google.com/sounds/v1/nature/ocean_waves.ogg",
+        "https://actions.google.com/sounds/v1/weather/rain_heavy_with_thunder.ogg",
+        "https://actions.google.com/sounds/v1/nature/forest_night.ogg",
+        "https://actions.google.com/sounds/v1/ambiences/park_birds.ogg",
+      ];
+      final url = sons[(DateTime.now().millisecond % sons.length)];
+      await _audioPlayer.play(UrlSource(url));
+      setState(() => _isPlaying = true);
+      _audioPlayer.onPlayerComplete.listen((_) {
+        if (mounted) setState(() => _isPlaying = false);
+      });
+    } catch (e) {
+      setState(() => _isPlaying = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final showButton = widget.message.msg.contains('<SHOW_BUTTON>') || widget.message.msg.contains('SHOW_BUTTON');
-    final cleanText = widget.message.msg.replaceAll('<SHOW_BUTTON>', '').replaceAll('SHOW_BUTTON', '').trim();
+    final showButton = widget.message.msg.contains('<SHOW_BUTTON>') ||
+        widget.message.msg.contains('SHOW_BUTTON');
+    final cleanText = widget.message.msg
+        .replaceAll('<SHOW_BUTTON>', '')
+        .replaceAll('SHOW_BUTTON', '')
+        .trim();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(cleanText, style: GoogleFonts.inter(fontSize: 15, color: Colors.black87, height: 1.6)),
+          if (widget.message.aiProvider != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.auto_awesome, size: 13, color: Colors.grey),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.message.aiProvider!,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: Colors.grey,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          widget.message.msg.isEmpty
+              ? AnimatedTextKit(
+                  animatedTexts: [
+                    TypewriterAnimatedText(
+                      'Ouvindo...',
+                      textStyle: GoogleFonts.inter(
+                        fontSize: 15,
+                        color: Colors.grey,
+                        height: 1.5,
+                      ),
+                      speed: const Duration(milliseconds: 80),
+                    ),
+                  ],
+                  repeatForever: true,
+                )
+              : Text(
+                  cleanText,
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    color: Colors.black87,
+                    height: 1.6,
+                  ),
+                ),
           if (showButton)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: InkWell(
-                onTap: () => _abrirRefugio(context),
+                onTap: _ouvirSilencio,
+                borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(color: const Color(0xFFF0F0F0), borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F0F0),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(_isPlaying ? Icons.pause_circle_filled : Icons.music_note_rounded, size: 14, color: Colors.grey),
+                      Icon(
+                        _isPlaying
+                            ? Icons.pause_circle_filled
+                            : Icons.music_note_rounded,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 6),
-                      Text('Ouvir o silêncio...', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey)),
+                      Text(
+                        _isPlaying ? 'Pausar...' : 'Ouvir o silêncio...',
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ],
                   ),
                 ),
