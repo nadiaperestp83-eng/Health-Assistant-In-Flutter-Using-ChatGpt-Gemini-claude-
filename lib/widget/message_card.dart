@@ -59,8 +59,15 @@ class _BotMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showButton = message.msg.contains('<SHOW_BUTTON>');
-    final cleanText = message.msg.replaceAll('<SHOW_BUTTON>', '').trim();
+    // Detecta tag com ou sem <>
+    final showButton = message.msg.contains('<SHOW_BUTTON>') ||
+        message.msg.contains('SHOW_BUTTON');
+
+    // Remove todas as variações da tag
+    final cleanText = message.msg
+        .replaceAll('<SHOW_BUTTON>', '')
+        .replaceAll('SHOW_BUTTON', '')
+        .trim();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
@@ -95,7 +102,7 @@ class _BotMessage extends StatelessWidget {
                     height: 1.6,
                   ),
                 ),
-          if (showButton && onOuvir != null)
+          if (showButton)
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: GestureDetector(
