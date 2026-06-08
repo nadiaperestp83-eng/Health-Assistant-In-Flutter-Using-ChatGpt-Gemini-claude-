@@ -45,16 +45,27 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   // Init TTS nativo
   // ─────────────────────────────────────────────
   @override
-  void initState() {
-    super.initState();
-    _initTts();
-  }
-
   void _initTts() async {
-  await _tts.setLanguage('pt-BR');
-  await _tts.setSpeechRate(0.5);
-  await _tts.setVolume(1.0);
-  await _tts.setPitch(1.0);
+    // 1. Define o idioma global primeiro
+    await _tts.setLanguage('pt-BR');
+    
+    // 2. Garante que o motor de áudio saiba que o conteúdo é pt-BR
+    await _tts.setSharedInstance(true); 
+
+    // 3. Filtro rigoroso: Tem que ser pt-BR E (neural ou high-quality)
+    List<dynamic> voices = await _tts.getVoices;
+    var ptNeuralVoice = voices.firstWhere(
+      (v) => v['locale'].toString().startsWith('pt-BR') && 
+             (v['name'].toString().toLowerCase().contains('neural') || 
+              v['name'].toString().toLowerCase().contains('high-quality')),
+      orElse: () => voices.firstWhere((v) => v['locale'].toString().startsWith('pt-BR')),
+    );
+
+    await _tts.setVoice(Map<String, String>.from(ptNeuralVoice));
+    
+    await _tts.setSpeechRate(0.5);
+    await _tts.setVolume(1.0);
+    await _tts.setPitch(1.0);
 
   // O SEGREDO PARA A VOZ NEURAL:
   // Listamos as vozes disponíveis e escolhemos uma que seja "Neural" ou "High Quality"
