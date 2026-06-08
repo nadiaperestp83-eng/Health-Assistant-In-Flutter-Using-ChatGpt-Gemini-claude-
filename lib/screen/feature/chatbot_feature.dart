@@ -1,13 +1,15 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import '../../helper/my_dialog.dart';
-
 import '../../controller/chat_controller.dart';
 import '../../helper/global.dart';
 import '../../widget/message_card.dart';
+import '../../sounds_data.dart';
 import 'image_feature.dart';
 import 'translator_feature.dart';
 
@@ -22,9 +24,11 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   final _c = ChatController();
   final _tts = FlutterTts();
   final _stt = SpeechToText();
+  final _player = AudioPlayer();
   int _selectedTab = 0;
   bool _isListening = false;
   bool _ttsEnabled = true;
+  bool _isPlayingMusic = false;
 
   final _tabs = [
     {'icon': Icons.chat_bubble_rounded, 'label': 'Chat'},
@@ -49,7 +53,30 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   void _speak(String text) async {
     if (_ttsEnabled && text.isNotEmpty) {
       await _tts.stop();
-      await _tts.speak(text);
+      final clean = text.replaceAll('<SHOW_BUTTON>', '').replaceAll('SHOW_BUTTON', '').trim();
+      await _tts.speak(clean);
+    }
+  }
+
+  void _ouvirSilencio() async {
+    if (_isPlayingMusic) {
+      await _player.stop();
+      setState(() => _isPlayingMusic = false);
+      return;
+    }
+    try {
+      final random = Random();
+      final url = trilhasRefugio[random.nextInt(trilhasRefugio.length)];
+      await _player.setUrl(url);
+      await _player.play();
+      setState(() => _isPlayingMusic = true);
+      _player.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          setState(() => _isPlayingMusic = false);
+        }
+      });
+    } catch (e) {
+      MyDialog.error('Não foi possível tocar a música.');
     }
   }
 
@@ -88,6 +115,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   void dispose() {
     _tts.stop();
     _stt.stop();
+    _player.dispose();
     super.dispose();
   }
 
@@ -119,6 +147,11 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
         ),
         centerTitle: true,
         actions: [
+          if (_isPlayingMusic)
+            IconButton(
+              icon: const Icon(Icons.stop_circle_outlined, color: Color(0xFF6B8EFF)),
+              onPressed: _ouvirSilencio,
+            ),
           if (_selectedTab == 0)
             IconButton(
               icon: Icon(
@@ -156,8 +189,12 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
                       bottom: mq.height * .22,
                       left: 16,
                       right: 16),
-                  children:
-                      _c.list.map((e) => MessageCard(message: e)).toList(),
+                  children: _c.list
+                      .map((e) => MessageCard(
+                            message: e,
+                            onOuvir: _ouvirSilencio,
+                          ))
+                      .toList(),
                 ))
           else if (_selectedTab == 1)
             ImageFeature()
@@ -192,7 +229,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Chips
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
@@ -214,8 +250,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
                         ),
                       ),
                     ),
-
-                    // Input
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
                       child: Row(
@@ -253,8 +287,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
                             ),
                           ),
                           const SizedBox(width: 8),
-
-                          // Botão microfone
                           GestureDetector(
                             onTapDown: (_) => _startListening(),
                             onTapUp: (_) => _stopListening(),
@@ -269,25 +301,17 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
                               padding: const EdgeInsets.all(10),
                               child: Icon(
                                 _isListening ? Icons.mic : Icons.mic_none,
-                                color: _isListening
-                                    ? Colors.white
-                                    : Colors.grey,
+                                color: _isListening ? Colors.white : Colors.grey,
                                 size: 22,
                               ),
                             ),
                           ),
-
                           const SizedBox(width: 8),
-
-                          // Botão enviar
                           Container(
                             decoration: const BoxDecoration(
                               shape: BoxShape.circle,
                               gradient: LinearGradient(
-                                colors: [
-                                  Color(0xFF6B8EFF),
-                                  Color(0xFFB06BFF)
-                                ],
+                                colors: [Color(0xFF6B8EFF), Color(0xFFB06BFF)],
                               ),
                             ),
                             child: IconButton(
@@ -326,8 +350,8 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
           backgroundColor: Colors.white,
           selectedItemColor: const Color(0xFF6B8EFF),
           unselectedItemColor: Colors.grey,
-          selectedLabelStyle: const TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w600),
+          selectedLabelStyle:
+              const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           unselectedLabelStyle: const TextStyle(fontSize: 11),
           elevation: 0,
           items: _tabs
