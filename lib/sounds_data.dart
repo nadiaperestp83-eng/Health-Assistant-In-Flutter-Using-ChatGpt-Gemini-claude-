@@ -1,5 +1,3 @@
-// lib/sounds_data.dart
-
 final List<String> trilhasRefugio = [
   "https://freesound.org/data/previews/554/554674_10672016-lq.mp3",
   "https://freesound.org/data/previews/829/829030_15494489-lq.mp3",
