@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../helper/global.dart';
 import '../model/message.dart';
+import 'refuge_mode_sheet.dart';
 
 class MessageCard extends StatelessWidget {
   final Message message;
@@ -58,48 +60,6 @@ class _BotMessage extends StatefulWidget {
 }
 
 class _BotMessageState extends State<_BotMessage> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  StreamSubscription? _completeSub;
-  bool _isPlaying = false;
-
-  static const _sons = [
-  'sounds/chuva.mp3',
-  'sounds/floresta.mp3',
-  'sounds/ondas.mp3',
-  'sounds/vento.mp3',
-];
-  
-  @override
-  void dispose() {
-    _completeSub?.cancel();
-    _audioPlayer.dispose();
-    super.dispose();
-  }
-
-  Future<void> _ouvirSilencio() async {
-    if (_isPlaying) {
-      await _audioPlayer.stop();
-      await _completeSub?.cancel();
-      if (mounted) setState(() => _isPlaying = false);
-      return;
-    }
-
-    final asset = _sons[DateTime.now().millisecond % _sons.length];
-
-    try {
-      await _completeSub?.cancel();
-      await _audioPlayer.stop();
-      await _audioPlayer.play(AssetSource(asset));
-      if (mounted) setState(() => _isPlaying = true);
-
-      _completeSub = _audioPlayer.onPlayerComplete.listen((_) {
-        if (mounted) setState(() => _isPlaying = false);
-      });
-    } catch (e) {
-      if (mounted) setState(() => _isPlaying = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final showButton = widget.message.msg.contains('<SHOW_BUTTON>') ||
@@ -160,7 +120,14 @@ class _BotMessageState extends State<_BotMessage> {
             Padding(
               padding: const EdgeInsets.only(top: 12),
               child: InkWell(
-                onTap: _ouvirSilencio,
+                onTap: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => const RefugeModeSheet(),
+                  );
+                },
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -172,16 +139,14 @@ class _BotMessageState extends State<_BotMessage> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        _isPlaying
-                            ? Icons.pause_circle_filled
-                            : Icons.music_note_rounded,
+                      const Icon(
+                        Icons.music_note_rounded,
                         size: 14,
-                        color: const Color(0xFF6B8EFF),
+                        color: Color(0xFF6B8EFF),
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        _isPlaying ? 'Pausar...' : 'Ouvir o silêncio...',
+                        'Ouvir o silêncio...',
                         style: GoogleFonts.inter(
                           fontSize: 13,
                           color: Colors.grey,
