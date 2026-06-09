@@ -71,25 +71,25 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
     // ===== PRIORIDADE 1: ElevenLabs =====
     try {
-      final String? filePath = await ElevenLabsService.sintetizar(cleanText);
+      final String filePath = await ElevenLabsService.sintetizar(cleanText)
+          .then((v) => v ?? (throw Exception('retornou null')));
 
-      if (filePath != null && filePath.isNotEmpty) {
-        await _ttsPlayer.setFilePath(filePath);
-        await _ttsPlayer.play();
+      await _ttsPlayer.setFilePath(filePath);
+      await _ttsPlayer.play();
 
-        _playerSub = _ttsPlayer.playerStateStream.listen((state) {
-          if (state.processingState == ProcessingState.completed) {
-            File(filePath).delete().catchError((_) {});
-            if (mounted) setState(() => _isSpeaking = false);
-          }
-        });
-        return;
-      }
+      _playerSub = _ttsPlayer.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          File(filePath).delete().catchError((_) {});
+          if (mounted) setState(() => _isSpeaking = false);
+        }
+      });
+      return;
     } catch (e) {
       log('❌ ElevenLabs erro: $e');
     }
 
     // ===== FALLBACK: TTS Nativo =====
+    log('🎤 Fallback TTS nativo');
     await _tts.speak(cleanText);
     _tts.setCompletionHandler(() {
       if (mounted) setState(() => _isSpeaking = false);
