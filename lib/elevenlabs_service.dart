@@ -1,36 +1,53 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
+
 import 'helper/global.dart';
 
 class ElevenLabsService {
-  // ID da voz definido conforme o seu requisito
-  static const String _voiceId = 'YyqkX0AHv8W5D1vxG9lR';
+  static const String _baseUrl = 'https://api.elevenlabs.io/v1/text-to-speech';
+  static const String _voiceId = 'YyqkX0AHv8W5D1vxG9lR'; // sua voice ID
 
-  static Future<Uint8List?> sintetizar(String text) async {
-    final url = Uri.parse('https://api.elevenlabs.io/v1/text-to-speech/$_voiceId');
+  static Future<Uint8List?> textToSpeech(String text) async {
+    final String apiKey = elevenlabsKey.trim();
+    
+    if (apiKey.isEmpty) {
+      debugPrint('❌ ElevenLabs: API Key vazia');
+      return null;
+    }
 
-    final response = await http.post(
-      url,
-      headers: {
-        'accept': 'audio/mpeg',
-        'xi-api-key': elevenlabsKey.trim(),
-        'Content-Type': 'application/json',
+    final url = '$_baseUrl/$_voiceId';
+    final headers = {
+      'Content-Type': 'application/json',
+      'xi-api-key': apiKey,
+    };
+
+    final body = jsonEncode({
+      'text': text,
+      'model_id': 'eleven_multilingual_v2',
+      'voice_settings': {
+        'stability': 0.5,
+        'similarity_boost': 0.5,
       },
-      body: jsonEncode({
-        'text': text,
-        'model_id': 'eleven_multilingual_v2',
-        'voice_settings': {
-          'stability': 0.45,
-          'similarity_boost': 0.80,
-        }
-      }),
-    );
+    });
 
-    if (response.statusCode == 200) {
-      return response.bodyBytes;
-    } else {
-      // Retorna nulo para indicar falha na obtenção dos bytes
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: headers,
+        body: body,
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('✅ ElevenLabs: Audio gerado com sucesso');
+        return response.bodyBytes;
+      } else {
+        debugPrint('❌ ElevenLabs Error: ${response.statusCode} - ${response.body}');
+        return null;
+      }
+    } catch (e) {
+      debugPrint('❌ ElevenLabs Exception: $e');
       return null;
     }
   }
