@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:developer';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -111,13 +110,11 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     }
 
     log('Chamando ElevenLabs...');
-    final Uint8List? audioBytes = await ElevenLabsService.sintetizar(cleanText);
+    final String? audioPath = await ElevenLabsService.sintetizar(cleanText);
 
-    if (audioBytes != null && audioBytes.isNotEmpty) {
-      log('ElevenLabs OK — ${audioBytes.length} bytes');
+    if (audioPath != null) {
       try {
-        final source = MyBytesAudioSource(audioBytes);
-        await _ttsPlayer.setAudioSource(source);
+        await _ttsPlayer.setFilePath(audioPath);
         await _ttsPlayer.play();
 
         _playerSub = _ttsPlayer.playerStateStream.listen((state) {
@@ -130,7 +127,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
         await _falarNativo(cleanText);
       }
     } else {
-      log('ElevenLabs retornou null/vazio — usando TTS nativo');
+      log('ElevenLabs retornou null — usando TTS nativo');
       await _falarNativo(cleanText);
     }
   }
@@ -189,7 +186,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     _tts.stop();
     _stt.stop();
     _player.dispose();
-    _ttsPlayer.dispose();    // ← dispose do player TTS
+    _ttsPlayer.dispose();
     super.dispose();
   }
 
@@ -299,8 +296,9 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
                             : 'Digite ou fale algo...',
                         hintStyle: TextStyle(
                           fontSize: 14,
-                          color:
-                              _isListening ? const Color(0xFF6B8EFF) : Colors.grey,
+                          color: _isListening
+                              ? const Color(0xFF6B8EFF)
+                              : Colors.grey,
                         ),
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(
@@ -348,24 +346,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class MyBytesAudioSource extends StreamAudioSource {
-  final Uint8List _buffer;
-  MyBytesAudioSource(this._buffer) : super(tag: 'MyBytesAudioSource');
-
-  @override
-  Future<StreamAudioResponse> request([int? start, int? end]) async {
-    start ??= 0;
-    end ??= _buffer.length;
-    return StreamAudioResponse(
-      sourceLength: _buffer.length,
-      contentLength: end - start,
-      offset: start,
-      stream: Stream.value(_buffer.sublist(start, end)),
-      contentType: 'audio/mpeg',
     );
   }
 }
