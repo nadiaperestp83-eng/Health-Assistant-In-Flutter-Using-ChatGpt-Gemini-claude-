@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -39,7 +40,8 @@ class _UserMessage extends StatelessWidget {
             ),
             child: Text(
               message.msg,
-              style: GoogleFonts.inter(fontSize: 15, color: Colors.black87, height: 1.5),
+              style: GoogleFonts.inter(
+                  fontSize: 15, color: Colors.black87, height: 1.5),
             ),
           ),
         ],
@@ -58,35 +60,48 @@ class _BotMessage extends StatefulWidget {
 
 class _BotMessageState extends State<_BotMessage> {
   final AudioPlayer _audioPlayer = AudioPlayer();
+  StreamSubscription? _completeSub;
   bool _isPlaying = false;
+
+  // Sons de domínio público — CDN confiável, formato MP3
+  static const _sons = [
+    'https://cdn.freesound.org/previews/531/531947_3797507-lq.mp3', // chuva leve
+    'https://cdn.freesound.org/previews/531/531948_3797507-lq.mp3', // floresta
+    'https://cdn.freesound.org/previews/316/316847_2653013-lq.mp3', // ondas do mar
+    'https://cdn.freesound.org/previews/200/200213_2394539-lq.mp3', // vento calmo
+  ];
 
   @override
   void dispose() {
+    _completeSub?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
 
-  void _ouvirSilencio() async {
+  Future<void> _ouvirSilencio() async {
     if (_isPlaying) {
       await _audioPlayer.stop();
-      setState(() => _isPlaying = false);
+      _completeSub?.cancel();
+      if (mounted) setState(() => _isPlaying = false);
       return;
     }
+
+    final url = _sons[DateTime.now().millisecond % _sons.length];
+
     try {
-      final sons = [
-        "https://actions.google.com/sounds/v1/nature/ocean_waves.ogg",
-        "https://actions.google.com/sounds/v1/weather/rain_heavy_with_thunder.ogg",
-        "https://actions.google.com/sounds/v1/nature/forest_night.ogg",
-        "https://actions.google.com/sounds/v1/ambiences/park_birds.ogg",
-      ];
-      final url = sons[(DateTime.now().millisecond % sons.length)];
+      // Cancela listener anterior antes de criar novo
+      await _completeSub?.cancel();
+
+      await _audioPlayer.stop();
       await _audioPlayer.play(UrlSource(url));
-      setState(() => _isPlaying = true);
-      _audioPlayer.onPlayerComplete.listen((_) {
+
+      if (mounted) setState(() => _isPlaying = true);
+
+      _completeSub = _audioPlayer.onPlayerComplete.listen((_) {
         if (mounted) setState(() => _isPlaying = false);
       });
     } catch (e) {
-      setState(() => _isPlaying = false);
+      if (mounted) setState(() => _isPlaying = false);
     }
   }
 
@@ -167,7 +182,7 @@ class _BotMessageState extends State<_BotMessage> {
                             ? Icons.pause_circle_filled
                             : Icons.music_note_rounded,
                         size: 14,
-                        color: Colors.grey,
+                        color: const Color(0xFF6B8EFF),
                       ),
                       const SizedBox(width: 6),
                       Text(
