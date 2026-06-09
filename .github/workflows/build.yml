@@ -30,7 +30,7 @@ jobs:
 
       - name: Configurar chaves
         run: |
-          sed -i 's|String elevenlabsKey = "";|String elevenlabsKey = "${{ secrets.ELEVENLABS_API_KEY }}";|g' lib/helper/global.dart
+          sed -i "s|String elevenlabsKey = '';|String elevenlabsKey = '${{ secrets.ELEVENLABS_API_KEY }}';|g" lib/helper/global.dart
           sed -i "s/String apiKey = '';/String apiKey = '${{ secrets.GEMINI_KEY }}';/" lib/helper/global.dart
           sed -i "s/String claudeKey = '';/String claudeKey = '${{ secrets.CLAUDE_KEY }}';/" lib/helper/global.dart
           sed -i "s/String groqKey = '';/String groqKey = '${{ secrets.GROQ_KEY }}';/" lib/helper/global.dart
