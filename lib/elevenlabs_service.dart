@@ -15,9 +15,22 @@ class ElevenLabsService {
           'xi-api-key': elevenlabsKey,
           'Content-Type': 'application/json',
         },
-        body: '{"text":"$texto","model_id":"eleven_multilingual_v2","voice_settings":{"stability":0.5,"similarity_boost":0.75}}',
+        body: '{'
+            '"text":"${texto.replaceAll('"', '\\"')}",'
+            '"model_id":"eleven_multilingual_v2",'
+            '"voice_settings":{'
+            '"stability":0.45,'
+            '"similarity_boost":0.80,'
+            '"style":0.0,'
+            '"use_speaker_boost":true'
+            '}'
+            '}',
       );
       if (res.statusCode == 200) return res.bodyBytes;
+      if (res.statusCode == 429) {
+        log('ElevenLabs: cota atingida (429) — usando fallback nativo');
+        return null;
+      }
       log('ElevenLabs erro: ${res.statusCode} ${res.body}');
       return null;
     } catch (e) {
