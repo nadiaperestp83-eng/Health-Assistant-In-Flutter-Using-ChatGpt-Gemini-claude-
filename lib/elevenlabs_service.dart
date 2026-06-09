@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'helper/global.dart';
+import 'package:ai_assistant/helper/global.dart';
 
 class ElevenLabsService {
   static const String _voiceId = '4za2kOXGgUd57HRSQ1fn';
@@ -21,7 +20,7 @@ class ElevenLabsService {
         },
         body: jsonEncode({
           'text': text,
-          'model_id': 'eleven_multilingual_v2', // ← corrigido
+          'model_id': 'eleven_multilingual_v2',
           'voice_settings': {
             'stability': 0.45,
             'similarity_boost': 0.80,
@@ -36,11 +35,8 @@ class ElevenLabsService {
         return file.path;
       }
 
-      // Log do erro para debug
-      print('ElevenLabs erro ${response.statusCode}: ${response.body}');
       return null;
     } catch (e) {
-      print('ElevenLabs exception: $e');
       return null;
     }
   }
