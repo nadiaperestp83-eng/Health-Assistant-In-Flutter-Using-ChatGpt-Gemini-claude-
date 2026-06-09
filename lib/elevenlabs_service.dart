@@ -1,38 +1,35 @@
-import 'package:elevenlabs_flutter/elevenlabs_flutter.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:ai_assistant/helper/global.dart';
 
 class ElevenLabsService {
   static const String _voiceId = '4za2kOXGgUd57HRSQ1fn';
 
-  static final _api = ElevenLabsAPI();
-  static bool _initialized = false;
-
-  static Future<void> _init() async {
-    if (_initialized) return;
-    await _api.init(
-      baseUrl: 'https://api.elevenlabs.io',
-      apiKey: elevenlabsKey.trim(),
-    );
-    _initialized = true;
-  }
-
   static Future<List<int>?> sintetizar(String text) async {
+    final String key = elevenlabsKey.trim();
+    if (key.isEmpty) return null;
+
     try {
-      await _init();
-      final result = await _api.synthesize(
-        TextToSpeechRequest(
-          text: text,
-          voiceId: _voiceId,
-          modelId: 'eleven_multilingual_v2',
-          voiceSettings: VoiceSettings(
-            stability: 0.45,
-            similarityBoost: 0.80,
-          ),
-        ),
+      final response = await http.post(
+        Uri.parse('https://api.elevenlabs.io/v1/text-to-speech/$_voiceId'),
+        headers: {
+          'accept': 'audio/mpeg',
+          'xi-api-key': key,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'text': text,
+          'model_id': 'eleven_multilingual_v2',
+          'voice_settings': {
+            'stability': 0.45,
+            'similarity_boost': 0.80,
+          }
+        }),
       );
-      return result;
+
+      if (response.statusCode == 200) return response.bodyBytes;
+      return null;
     } catch (e) {
-      print('ElevenLabs erro: $e');
       return null;
     }
   }
