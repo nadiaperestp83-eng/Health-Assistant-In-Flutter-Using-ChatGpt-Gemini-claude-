@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -26,8 +27,8 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   final _c = ChatController();
   final _tts = FlutterTts();
   final _stt = SpeechToText();
-  final _player = AudioPlayer(); // músicas ambiente
-  final _ttsPlayer = AudioPlayer(); // ElevenLabs TTS
+  final _player = AudioPlayer();
+  final _ttsPlayer = AudioPlayer();
 
   StreamSubscription? _playerSub;
 
@@ -40,103 +41,18 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     super.initState();
     _initTts();
   }
-// ... [TODO O SEU CÓDIGO DA TELA] ...
-} // <--- AQUI TERMINA SUA CLASSE CHATBOT_FEATURE
-
-// A CLASSE DO TUTORIAL VAI AQUI, NO FINAL DO ARQUIVO:
-
-class MyCustomSource extends StreamAudioSource {
-  final List<int> bytes;
-  MyCustomSource(this.bytes);
-
-  @override
-  Future<StreamAudioResponse> request([int? start, int? end]) async {
-    start ??= 0;
-    end ??= bytes.length;
-    return StreamAudioResponse(
-      sourceLength: bytes.length,
-      contentLength: end - start,
-      offset: start,
-      stream: Stream.value(bytes.sublist(start, end)),
-      contentType: 'audio/mpeg',
-    );
-  }
-}
 
   void _initTts() async {
-    // FORÇA TTS NEURAL HUMANO (WaveNet / Belle / Google Neural)
     await _tts.setLanguage('pt-BR');
     await _tts.setSpeechRate(0.55);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
     
-    // Tenta forçar o motor neural do Google
     try {
       await _tts.setEngine("com.google.android.tts");
-      log('✅ Motor TTS: Google TTS configurado');
+      log('✅ Motor Google TTS configurado');
     } catch (e) {
       log('⚠️ Não foi possível setar engine Google: $e');
-    }
-    
-    // Força voz neural disponível no dispositivo
-    try {
-      final voices = await _tts.getVoices as List?;
-      if (voices != null && voices.isNotEmpty) {
-        // Lista de vozes neurais humanas em português
-        final vozesNeurais = [
-          'pt-BR-neural',
-          'pt-BR-wavenet',
-          'pt-BR-std',
-          'pt-br-x-iub-network',  // Belle (Google Neural)
-          'pt-br-x-iua-network',  // Google Neural Feminina
-          'com.google.android.tts:pt-br-x-iub-network',
-          'com.google.android.tts:pt-br-x-iua-network',
-        ];
-        
-        String? vozEscolhida;
-        
-        // Procura por voz neural
-        for (final voz in vozesNeurais) {
-          final encontrada = voices.cast<Map>().firstWhere(
-            (v) {
-              final nome = (v['name'] ?? '').toString().toLowerCase();
-              final id = (v['id'] ?? '').toString().toLowerCase();
-              return nome.contains(voz.toLowerCase()) || id.contains(voz.toLowerCase());
-            },
-            orElse: () => {},
-          );
-          if (encontrada.isNotEmpty) {
-            vozEscolhida = encontrada['name']?.toString();
-            log('✅ Voz neural encontrada: $vozEscolhida');
-            break;
-          }
-        }
-        
-        // Se não achou, tenta qualquer voz que contenha 'neural' ou 'wavenet'
-        if (vozEscolhida == null) {
-          for (final v in voices.cast<Map>()) {
-            final nome = (v['name'] ?? '').toString().toLowerCase();
-            final id = (v['id'] ?? '').toString().toLowerCase();
-            if (nome.contains('neural') || 
-                id.contains('neural') ||
-                nome.contains('wavenet') || 
-                id.contains('wavenet')) {
-              vozEscolhida = v['name']?.toString();
-              log('✅ Voz alternativa neural: $vozEscolhida');
-              break;
-            }
-          }
-        }
-        
-        if (vozEscolhida != null) {
-          await _tts.setVoice({'name': vozEscolhida, 'locale': 'pt-BR'});
-          log('🎤 Voz neural configurada: $vozEscolhida');
-        } else {
-          log('⚠️ Nenhuma voz neural encontrada, usando padrão do sistema');
-        }
-      }
-    } catch (e) {
-      log('❌ Erro ao configurar voz neural: $e');
     }
   }
 
@@ -158,19 +74,15 @@ class MyCustomSource extends StreamAudioSource {
     setState(() => _isSpeaking = true);
 
     // ===== PRIORIDADE 1: ElevenLabs =====
-    log('🎯 Tentando ElevenLabs primeiro...');
-    log('🔑 Chave tem ${elevenlabsKey.length} caracteres');
-    
-    if (elevenlabsKey.isNotEmpty && elevenlabsKey != '') {
+    if (elevenlabsKey.isNotEmpty) {
       try {
         final Uint8List? audioBytes = await ElevenLabsService.sintetizar(cleanText);
         
-        if (audioBytes != null) {
-          log('✅ ElevenLabs: áudio recebido (${audioBytes.length} bytes)');
+        if (audioBytes != null && audioBytes.isNotEmpty) {
+          log('✅ Áudio ElevenLabs: ${audioBytes.length} bytes');
           
-          // Salva temporariamente e toca
           final tempDir = await getTemporaryDirectory();
-          final tempFile = File('${tempDir.path}/elevenlabs_${DateTime.now().millisecondsSinceEpoch}.mp3');
+          final tempFile = File('${tempDir.path}/eleven_${DateTime.now().millisecondsSinceEpoch}.mp3');
           await tempFile.writeAsBytes(audioBytes);
           
           await _ttsPlayer.setFilePath(tempFile.path);
@@ -179,91 +91,22 @@ class MyCustomSource extends StreamAudioSource {
           _playerSub = _ttsPlayer.playerStateStream.listen((state) {
             if (state.processingState == ProcessingState.completed) {
               if (mounted) setState(() => _isSpeaking = false);
-              // Limpa arquivo temporário
               tempFile.delete();
             }
           });
-          return; // Sai da função - ElevenLabs funcionou!
-        } else {
-          log('⚠️ ElevenLabs: retornou null, usando fallback neural');
+          return;
         }
       } catch (e) {
-        log('❌ ElevenLabs exceção: $e');
+        log('❌ ElevenLabs erro: $e');
       }
-    } else {
-      log('⚠️ ElevenLabs: chave vazia, usando fallback neural');
     }
 
-    // ===== PRIORIDADE 2: Fallback TTS Neural Humano =====
-    log('🎧 Usando fallback TTS neural humano (WaveNet/Belle)');
-    await _falarNeural(cleanText);
-  }
-
-  Future<void> _falarNeural(String texto) async {
-    try {
-      // Recria a configuração neural antes de falar
-      await _tts.setLanguage('pt-BR');
-      await _tts.setSpeechRate(0.55);
-      await _tts.setVolume(1.0);
-      await _tts.setPitch(1.0);
-      
-      // Força motor Google novamente
-      try {
-        await _tts.setEngine("com.google.android.tts");
-      } catch (e) {
-        // Ignora se não conseguir
-      }
-      
-      // Força voz neural novamente
-      try {
-        final voices = await _tts.getVoices as List?;
-        if (voices != null && voices.isNotEmpty) {
-          // Prioridade: Belle (x-iub), depois WaveNet, depois qualquer neural
-          final prioridades = [
-            'x-iub',      // Belle (voz feminina neural)
-            'x-iua',      // Google Neural feminina
-            'wavenet',
-            'neural',
-          ];
-          
-          String? melhorVoz;
-          for (final prioridade in prioridades) {
-            final encontrada = voices.cast<Map>().firstWhere(
-              (v) {
-                final nome = (v['name'] ?? '').toString().toLowerCase();
-                final id = (v['id'] ?? '').toString().toLowerCase();
-                return (nome.contains(prioridade) || id.contains(prioridade)) && 
-                       (nome.contains('pt') || id.contains('pt'));
-              },
-              orElse: () => {},
-            );
-            if (encontrada.isNotEmpty) {
-              melhorVoz = encontrada['name']?.toString();
-              log('✅ Fallback usando voz: $melhorVoz');
-              break;
-            }
-          }
-          
-          if (melhorVoz != null) {
-            await _tts.setVoice({'name': melhorVoz, 'locale': 'pt-BR'});
-          }
-        }
-      } catch (e) {
-        log('Erro ao forçar voz neural no fallback: $e');
-      }
-      
-      await _tts.speak(texto);
-      _tts.setCompletionHandler(() {
-        if (mounted) setState(() => _isSpeaking = false);
-      });
-    } catch (e) {
-      log('❌ Erro TTS neural: $e');
-      // Último fallback: TTS padrão do sistema
-      try {
-        await _tts.speak(texto);
-      } catch (_) {}
+    // ===== FALLBACK: TTS Nativo =====
+    log('🎤 Usando fallback TTS nativo');
+    await _tts.speak(cleanText);
+    _tts.setCompletionHandler(() {
       if (mounted) setState(() => _isSpeaking = false);
-    }
+    });
   }
 
   void _startListening() async {
