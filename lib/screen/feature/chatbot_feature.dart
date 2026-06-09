@@ -40,6 +40,28 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     super.initState();
     _initTts();
   }
+// ... [TODO O SEU CÓDIGO DA TELA] ...
+} // <--- AQUI TERMINA SUA CLASSE CHATBOT_FEATURE
+
+// A CLASSE DO TUTORIAL VAI AQUI, NO FINAL DO ARQUIVO:
+
+class MyCustomSource extends StreamAudioSource {
+  final List<int> bytes;
+  MyCustomSource(this.bytes);
+
+  @override
+  Future<StreamAudioResponse> request([int? start, int? end]) async {
+    start ??= 0;
+    end ??= bytes.length;
+    return StreamAudioResponse(
+      sourceLength: bytes.length,
+      contentLength: end - start,
+      offset: start,
+      stream: Stream.value(bytes.sublist(start, end)),
+      contentType: 'audio/mpeg',
+    );
+  }
+}
 
   void _initTts() async {
     // FORÇA TTS NEURAL HUMANO (WaveNet / Belle / Google Neural)
