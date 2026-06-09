@@ -8,11 +8,31 @@ class ElevenLabsService {
   static const _voiceId = 'YyqkX0AHv8W5D1vxG9lR'; // ← voz atualizada
 
   static Future<Uint8List?> sintetizar(String texto) async {
+    // ===== LOGS DE DIAGNÓSTICO =====
+    final key = elevenlabsKey.trim(); // Remove espaços/linhas extras
+    print('=== DIAGNÓSTICO ELEVENLABS ===');
+    print('Chave está vazia? ${key.isEmpty}');
+    print('Tamanho da chave: ${key.length}');
+    if (key.length >= 4) {
+      print('Primeiros 4 caracteres: ${key.substring(0, 4)}');
+      print('Últimos 4 caracteres: ${key.substring(key.length - 4)}');
+    } else if (key.isNotEmpty) {
+      print('Chave muito curta: "$key"');
+    }
+    print('Primeiro caractere (ASCII): ${key.isNotEmpty ? key.codeUnitAt(0) : "N/A"}');
+    print('===============================');
+    
+    if (key.isEmpty) {
+      print('❌ Chave ElevenLabs vazia - usando fallback nativo');
+      return null;
+    }
+    // ===== FIM DOS LOGS =====
+    
     try {
       final res = await http.post(
         Uri.parse('https://api.elevenlabs.io/v1/text-to-speech/$_voiceId'),
         headers: {
-          'xi-api-key': elevenlabsKey,
+          'xi-api-key': key, // Usar a chave com trim
           'Content-Type': 'application/json',
         },
         body: '{'
