@@ -1,74 +1,53 @@
 import 'dart:developer';
 import 'dart:typed_data';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 
 import 'helper/global.dart';
 
 class ElevenLabsService {
   static const _voiceId = 'YyqkX0AHv8W5D1vxG9lR';
 
-  static Future<Uint8List?> sintetizar(String texto) async {
+  static Future<String?> sintetizar(String texto) async {
     final key = elevenlabsKey.trim();
-
-    print('=== DIAGNÓSTICO ELEVENLABS ===');
-    print('Chave vazia? ${key.isEmpty}');
-    print('Tamanho: ${key.length}');
-    if (key.length >= 4) {
-      print('Prefixo: ${key.substring(0, 4)}');
-      print('Sufixo: ${key.substring(key.length - 4)}');
-    }
-    print('Texto a sintetizar: "$texto"');
-    print('==============================');
-
-    if (key.isEmpty) {
-      log('❌ Chave ElevenLabs vazia — fallback nativo');
-      return null;
-    }
+    if (key.isEmpty) return null;
 
     try {
-      final body = jsonEncode({
-        'text': texto,
-        'model_id': 'eleven_multilingual_v2',
-        'output_format': 'mp3_44100_128',
-        'voice_settings': {
-          'stability': 0.45,
-          'similarity_boost': 0.80,
-          'style': 0.0,
-          'use_speaker_boost': true,
-        }
-      });
-
       final res = await http.post(
-        Uri.parse(
-            'https://api.elevenlabs.io/v1/text-to-speech/$_voiceId'),
+        Uri.parse('https://api.elevenlabs.io/v1/text-to-speech/$_voiceId'),
         headers: {
           'xi-api-key': key,
           'Content-Type': 'application/json',
           'Accept': 'audio/mpeg',
         },
-        body: body,
+        body: jsonEncode({
+          'text': texto,
+          'model_id': 'eleven_multilingual_v2',
+          'voice_settings': {
+            'stability': 0.45,
+            'similarity_boost': 0.80,
+            'style': 0.0,
+            'use_speaker_boost': true,
+          }
+        }),
       );
 
-      print('[EL] Status: ${res.statusCode}');
+      log('[EL] status: ${res.statusCode}');
 
       if (res.statusCode == 200) {
-        print('[EL] ✅ Áudio recebido — ${res.bodyBytes.length} bytes');
-        return res.bodyBytes;
-      }
-      if (res.statusCode == 401) {
-        log('ElevenLabs: ❌ Chave inválida (401) — ${res.body}');
-        return null;
-      }
-      if (res.statusCode == 429) {
-        log('ElevenLabs: cota atingida (429) — fallback nativo');
-        return null;
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/el_tts.mp3');
+        await file.writeAsBytes(res.bodyBytes);
+        log('[EL] arquivo salvo: ${file.path}');
+        return file.path;
       }
 
-      log('ElevenLabs erro: ${res.statusCode} — ${res.body}');
+      log('[EL] erro: ${res.statusCode} ${res.body}');
       return null;
     } catch (e) {
-      log('ElevenLabsE: $e');
+      log('[EL] exception: $e');
       return null;
     }
   }
