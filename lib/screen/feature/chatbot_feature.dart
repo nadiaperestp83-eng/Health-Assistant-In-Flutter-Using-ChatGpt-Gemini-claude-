@@ -1,14 +1,12 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:speech_to_text/speech_to_text.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../controller/chat_controller.dart';
 import '../../elevenlabs_service.dart';
@@ -47,7 +45,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     await _tts.setSpeechRate(0.55);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
-    
+
     try {
       await _tts.setEngine("com.google.android.tts");
       log('✅ Motor Google TTS configurado');
@@ -76,24 +74,19 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     // ===== PRIORIDADE 1: ElevenLabs =====
     if (elevenlabsKey.trim().isNotEmpty) {
       try {
-        final Uint8List? audioBytes = await ElevenLabsService.textToSpeech(cleanText);
-        
-        if (audioBytes != null && audioBytes.isNotEmpty) {
-          log('✅ Áudio ElevenLabs recebido: ${audioBytes.length} bytes');
-          
+        final String? filePath = await ElevenLabsService.sintetizar(cleanText);
+
+        if (filePath != null && filePath.isNotEmpty) {
+          log('✅ Áudio ElevenLabs recebido: $filePath');
+
           try {
             await _ttsPlayer.stop();
-            // CORREÇÃO: Usa setAudioSource com Stream ou salva arquivo
-            final tempDir = await getTemporaryDirectory();
-            final tempFile = File('${tempDir.path}/eleven_${DateTime.now().millisecondsSinceEpoch}.mp3');
-            await tempFile.writeAsBytes(audioBytes);
-            
-            await _ttsPlayer.setFilePath(tempFile.path);
+            await _ttsPlayer.setFilePath(filePath);
             await _ttsPlayer.play();
-            
+
             _playerSub = _ttsPlayer.playerStateStream.listen((state) {
               if (state.processingState == ProcessingState.completed) {
-                tempFile.delete();
+                File(filePath).delete().catchError((_) {});
                 if (mounted) setState(() => _isSpeaking = false);
               }
             });
