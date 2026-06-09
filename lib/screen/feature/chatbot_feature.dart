@@ -25,9 +25,9 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   final _c = ChatController();
   final _tts = FlutterTts();
   final _stt = SpeechToText();
-  final _player = AudioPlayer();
+  final _player = AudioPlayer();       // músicas ambiente
+  final _ttsPlayer = AudioPlayer();    // ElevenLabs TTS — separado!
 
-  // ← FIX: subscription única, cancelada antes de cada novo áudio
   StreamSubscription? _playerSub;
 
   bool _isListening = false;
@@ -39,7 +39,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     super.initState();
     _initTts();
 
-    // Log de diagnóstico — confirma se a key foi injetada
     log('ElevenLabs key length: ${elevenlabsKey.length}');
     if (elevenlabsKey.isEmpty) {
       log('⚠️  ELEVENLABS_KEY VAZIA — verifique o secret no GitHub');
@@ -98,10 +97,9 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
     if (cleanText.isEmpty) return;
 
-    // Para qualquer fala anterior
     await _tts.stop();
-    await _player.stop();
-    await _playerSub?.cancel(); // ← cancela listener anterior
+    await _ttsPlayer.stop();
+    await _playerSub?.cancel();
     _playerSub = null;
 
     setState(() => _isSpeaking = true);
@@ -119,17 +117,16 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
       log('ElevenLabs OK — ${audioBytes.length} bytes');
       try {
         final source = MyBytesAudioSource(audioBytes);
-        await _player.setAudioSource(source);
-        await _player.play();
+        await _ttsPlayer.setAudioSource(source);
+        await _ttsPlayer.play();
 
-        // ← FIX: subscription única guardada para cancelar depois
-        _playerSub = _player.playerStateStream.listen((state) {
+        _playerSub = _ttsPlayer.playerStateStream.listen((state) {
           if (state.processingState == ProcessingState.completed) {
             if (mounted) setState(() => _isSpeaking = false);
           }
         });
       } catch (e) {
-        log('Player erro: $e — usando TTS nativo');
+        log('TtsPlayer erro: $e — usando TTS nativo');
         await _falarNativo(cleanText);
       }
     } else {
@@ -188,10 +185,11 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
   @override
   void dispose() {
-    _playerSub?.cancel(); // ← limpa subscription ao sair
+    _playerSub?.cancel();
     _tts.stop();
     _stt.stop();
     _player.dispose();
+    _ttsPlayer.dispose();    // ← dispose do player TTS
     super.dispose();
   }
 
@@ -231,7 +229,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
               setState(() => _ttsEnabled = !_ttsEnabled);
               if (!_ttsEnabled) {
                 _tts.stop();
-                _player.stop();
+                _ttsPlayer.stop();
               }
             },
           ),
@@ -354,7 +352,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   }
 }
 
-// Fonte de áudio em bytes para just_audio (ElevenLabs TTS)
 class MyBytesAudioSource extends StreamAudioSource {
   final Uint8List _buffer;
   MyBytesAudioSource(this._buffer) : super(tag: 'MyBytesAudioSource');
