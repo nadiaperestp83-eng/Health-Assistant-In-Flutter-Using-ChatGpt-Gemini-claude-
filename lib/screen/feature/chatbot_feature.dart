@@ -73,31 +73,33 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
     setState(() => _isSpeaking = true);
 
-    // ===== PRIORIDADE 1: ElevenLabs (seguindo o tutorial) =====
-    if (elevenlabsKey.isNotEmpty) {
+    // ===== PRIORIDADE 1: ElevenLabs =====
+    if (elevenlabsKey.trim().isNotEmpty) {
       try {
-        // Usando o método textToSpeech conforme o tutorial
         final Uint8List? audioBytes = await ElevenLabsService.textToSpeech(cleanText);
         
         if (audioBytes != null && audioBytes.isNotEmpty) {
-          log('✅ Áudio ElevenLabs: ${audioBytes.length} bytes');
+          log('✅ Áudio ElevenLabs recebido: ${audioBytes.length} bytes');
           
-          final tempDir = await getTemporaryDirectory();
-          final tempFile = File('${tempDir.path}/eleven_${DateTime.now().millisecondsSinceEpoch}.mp3');
-          await tempFile.writeAsBytes(audioBytes);
-          
-          await _ttsPlayer.setFilePath(tempFile.path);
-          await _ttsPlayer.play();
-          
-          _playerSub = _ttsPlayer.playerStateStream.listen((state) {
-            if (state.processingState == ProcessingState.completed) {
-              if (mounted) setState(() => _isSpeaking = false);
-              tempFile.delete();
-            }
-          });
-          return;
+          // Toca diretamente usando BytesAudioSource sem salvar arquivo
+          try {
+            await _ttsPlayer.stop();
+            final source = BytesAudioSource(audioBytes);
+            await _ttsPlayer.setAudioSource(source);
+            await _ttsPlayer.play();
+            
+            _playerSub = _ttsPlayer.playerStateStream.listen((state) {
+              if (state.processingState == ProcessingState.completed) {
+                if (mounted) setState(() => _isSpeaking = false);
+              }
+            });
+            log('✅ ElevenLabs: tocando com sucesso');
+            return;
+          } catch (e) {
+            log('❌ Erro no BytesAudioSource: $e');
+          }
         } else {
-          log('⚠️ ElevenLabs: retornou null');
+          log('⚠️ ElevenLabs: retornou null ou vazio');
         }
       } catch (e) {
         log('❌ ElevenLabs erro: $e');
