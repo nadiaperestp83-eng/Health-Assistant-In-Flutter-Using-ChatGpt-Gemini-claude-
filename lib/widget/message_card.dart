@@ -63,13 +63,12 @@ class _BotMessageState extends State<_BotMessage> {
   bool _isPlaying = false;
 
   static const _sons = [
-    'sounds/chuva (1).mp3',
-    'sounds/pássaros.mp3.mp3',
-    'sounds/Coral Guarani Tenonderã - Pejukatu Xondaro'i (Música Indígena Guarani) - CineDoc Brasil (youtube).mp3',
-    'sounds/zumbido-da-noite.mp3',
-
-  ];
-
+  'sounds/chuva.mp3',
+  'sounds/floresta.mp3',
+  'sounds/ondas.mp3',
+  'sounds/vento.mp3',
+];
+  
   @override
   void dispose() {
     _completeSub?.cancel();
