@@ -1,11 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:ai_assistant/helper/global.dart';
 
 class ElevenLabsService {
   static const String _voiceId = '4za2kOXGgUd57HRSQ1fn';
 
-  static Future<List<int>?> sintetizar(String text) async {
+  static Future<String?> sintetizar(String text) async {
     final String key = elevenlabsKey.trim();
     if (key.isEmpty) return null;
 
@@ -27,7 +29,12 @@ class ElevenLabsService {
         }),
       );
 
-      if (response.statusCode == 200) return response.bodyBytes;
+      if (response.statusCode == 200) {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/eleven_tts.mp3');
+        await file.writeAsBytes(response.bodyBytes);
+        return file.path;
+      }
       return null;
     } catch (e) {
       return null;
