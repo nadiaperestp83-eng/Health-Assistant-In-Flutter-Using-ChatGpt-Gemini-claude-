@@ -12,7 +12,9 @@ dependencies:
   flutter:
     sdk: flutter
   audioplayers: ^6.0.0
-  
+
+  dependencies:
+  elevenlabs_flutter: ^0.1.0
 
   cupertino_icons: ^1.0.8
 
