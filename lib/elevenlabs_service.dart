@@ -6,18 +6,17 @@ import 'package:flutter/foundation.dart';
 import 'helper/global.dart';
 
 class ElevenLabsService {
-  static const String _baseUrl = 'https://api.elevenlabs.io/v1/text-to-speech';
-  static const String _voiceId = 'YyqkX0AHv8W5D1vxG9lR'; // sua voice ID
-
   static Future<Uint8List?> textToSpeech(String text) async {
     final String apiKey = elevenlabsKey.trim();
     
     if (apiKey.isEmpty) {
-      debugPrint('❌ ElevenLabs: API Key vazia');
+      debugPrint('❌ ElevenLabs: API Key não configurada');
       return null;
     }
 
-    final url = '$_baseUrl/$_voiceId';
+    const String voiceId = 'YyqkX0AHv8W5D1vxG9lR';
+    final String url = 'https://api.elevenlabs.io/v1/text-to-speech/$voiceId';
+
     final headers = {
       'Content-Type': 'application/json',
       'xi-api-key': apiKey,
@@ -25,7 +24,7 @@ class ElevenLabsService {
 
     final body = jsonEncode({
       'text': text,
-      'model_id': 'eleven_multilingual_v2',
+      'model_id': 'eleven_monolingual_v1',
       'voice_settings': {
         'stability': 0.5,
         'similarity_boost': 0.5,
@@ -40,14 +39,14 @@ class ElevenLabsService {
       );
 
       if (response.statusCode == 200) {
-        debugPrint('✅ ElevenLabs: Audio gerado com sucesso');
+        debugPrint('✅ ElevenLabs: Áudio gerado com sucesso');
         return response.bodyBytes;
       } else {
-        debugPrint('❌ ElevenLabs Error: ${response.statusCode} - ${response.body}');
+        debugPrint('❌ ElevenLabs Erro ${response.statusCode}: ${response.body}');
         return null;
       }
     } catch (e) {
-      debugPrint('❌ ElevenLabs Exception: $e');
+      debugPrint('❌ ElevenLabs Exceção: $e');
       return null;
     }
   }
