@@ -24,8 +24,8 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   final _c = ChatController();
   final _tts = FlutterTts();
   final _stt = SpeechToText();
-  final _player = AudioPlayer();       // músicas ambiente
-  final _ttsPlayer = AudioPlayer();    // ElevenLabs TTS — separado!
+  final _player = AudioPlayer(); // músicas ambiente
+  final _ttsPlayer = AudioPlayer(); // ElevenLabs TTS
 
   StreamSubscription? _playerSub;
 
@@ -45,6 +45,8 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   }
 
   void _initTts() async {
+    // FORÇA O MOTOR NEURAL DO GOOGLE
+    await _tts.setEngine("com.google.android.tts");
     await _tts.setLanguage('pt-BR');
     await _tts.setSpeechRate(0.55);
     await _tts.setVolume(1.0);
@@ -53,15 +55,15 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     try {
       final voices = await _tts.getVoices as List?;
       if (voices != null && voices.isNotEmpty) {
-        final prioridade = ['neural', 'high-quality', 'iub', 'iuc', 'enhanced'];
+        // Prioridade para IDs neurais do Google (iua/iub)
+        final prioridade = ['x-iua', 'x-iub', 'neural', 'high-quality'];
         String? melhorVoz;
 
         for (final tag in prioridade) {
           final encontrada = voices.cast<Map>().firstWhere(
             (v) {
               final nome = (v['name'] ?? '').toString().toLowerCase();
-              final locale = (v['locale'] ?? '').toString().toLowerCase();
-              return nome.contains(tag) && locale.contains('pt');
+              return nome.contains(tag) && nome.contains('pt-br');
             },
             orElse: () => {},
           );
@@ -71,18 +73,13 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
           }
         }
 
-        melhorVoz ??= voices.cast<Map>().firstWhere(
-          (v) => (v['locale'] ?? '').toString().toLowerCase().contains('pt-br'),
-          orElse: () => {},
-        )['name']?.toString();
-
         if (melhorVoz != null) {
           await _tts.setVoice({'name': melhorVoz, 'locale': 'pt-BR'});
-          log('TTS fallback voz: $melhorVoz');
+          log('TTS selecionou voz neural: $melhorVoz');
         }
       }
     } catch (e) {
-      log('TTS voz fallback genérico: $e');
+      log('TTS erro ao selecionar voz: $e');
     }
   }
 
@@ -103,36 +100,36 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
     setState(() => _isSpeaking = true);
 
-    if (elevenlabsKey.isEmpty) {
-      log('ElevenLabs key vazia — indo direto para TTS nativo');
-      await _falarNativo(cleanText);
-      return;
-    }
+    // TENTATIVA 1: ElevenLabs (Prioridade total)
+    if (elevenlabsKey.isNotEmpty) {
+      log('Tentando ElevenLabs...');
+      final String? audioPath = await ElevenLabsService.sintetizar(cleanText);
 
-    log('Chamando ElevenLabs...');
-    final String? audioPath = await ElevenLabsService.sintetizar(cleanText);
-
-    if (audioPath != null) {
-      try {
-        await _ttsPlayer.setFilePath(audioPath);
-        await _ttsPlayer.play();
-
-        _playerSub = _ttsPlayer.playerStateStream.listen((state) {
-          if (state.processingState == ProcessingState.completed) {
-            if (mounted) setState(() => _isSpeaking = false);
-          }
-        });
-      } catch (e) {
-        log('TtsPlayer erro: $e — usando TTS nativo');
-        await _falarNativo(cleanText);
+      if (audioPath != null) {
+        try {
+          await _ttsPlayer.setFilePath(audioPath);
+          await _ttsPlayer.play();
+          
+          _playerSub = _ttsPlayer.playerStateStream.listen((state) {
+            if (state.processingState == ProcessingState.completed) {
+              if (mounted) setState(() => _isSpeaking = false);
+            }
+          });
+          return; // Sai da função aqui se ElevenLabs funcionar
+        } catch (e) {
+          log('Erro player ElevenLabs: $e — indo para fallback');
+        }
+      } else {
+        log('ElevenLabs falhou — indo para fallback');
       }
-    } else {
-      log('ElevenLabs retornou null — usando TTS nativo');
-      await _falarNativo(cleanText);
     }
+
+    // TENTATIVA 2: Fallback Nativo (se ElevenLabs falhar ou chave vazia)
+    await _falarNativo(cleanText);
   }
 
   Future<void> _falarNativo(String texto) async {
+    await _tts.setEngine("com.google.android.tts");
     await _tts.speak(texto);
     _tts.setCompletionHandler(() {
       if (mounted) setState(() => _isSpeaking = false);
