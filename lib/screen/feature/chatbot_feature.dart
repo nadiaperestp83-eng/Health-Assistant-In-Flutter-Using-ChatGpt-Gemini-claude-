@@ -73,10 +73,11 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
     setState(() => _isSpeaking = true);
 
-    // ===== PRIORIDADE 1: ElevenLabs =====
+    // ===== PRIORIDADE 1: ElevenLabs (seguindo o tutorial) =====
     if (elevenlabsKey.isNotEmpty) {
       try {
-        final Uint8List? audioBytes = await ElevenLabsService.sintetizar(cleanText);
+        // Usando o método textToSpeech conforme o tutorial
+        final Uint8List? audioBytes = await ElevenLabsService.textToSpeech(cleanText);
         
         if (audioBytes != null && audioBytes.isNotEmpty) {
           log('✅ Áudio ElevenLabs: ${audioBytes.length} bytes');
@@ -95,10 +96,14 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
             }
           });
           return;
+        } else {
+          log('⚠️ ElevenLabs: retornou null');
         }
       } catch (e) {
         log('❌ ElevenLabs erro: $e');
       }
+    } else {
+      log('⚠️ ElevenLabs: chave vazia');
     }
 
     // ===== FALLBACK: TTS Nativo =====
