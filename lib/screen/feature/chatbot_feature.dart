@@ -37,9 +37,47 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
   void _initTts() async {
     await _tts.setLanguage('pt-BR');
-    await _tts.setSpeechRate(0.5);
+    await _tts.setSpeechRate(0.55);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
+
+    // Busca a voz mais acolhedora/humana disponível no dispositivo
+    try {
+      final voices = await _tts.getVoices as List?;
+      if (voices != null && voices.isNotEmpty) {
+        // Prioridade: neural > high-quality > iub/iuc > pt-BR genérico
+        final prioridade = ['neural', 'high-quality', 'iub', 'iuc', 'enhanced'];
+        String? melhorVoz;
+
+        for (final tag in prioridade) {
+          final encontrada = voices.cast<Map>().firstWhere(
+            (v) {
+              final nome = (v['name'] ?? '').toString().toLowerCase();
+              final locale = (v['locale'] ?? '').toString().toLowerCase();
+              return nome.contains(tag) && locale.contains('pt');
+            },
+            orElse: () => {},
+          );
+          if (encontrada.isNotEmpty) {
+            melhorVoz = encontrada['name']?.toString();
+            break;
+          }
+        }
+
+        // Fallback: qualquer voz pt-BR
+        melhorVoz ??= voices.cast<Map>().firstWhere(
+          (v) => (v['locale'] ?? '').toString().toLowerCase().contains('pt-br'),
+          orElse: () => {},
+        )['name']?.toString();
+
+        if (melhorVoz != null) {
+          await _tts.setVoice({'name': melhorVoz, 'locale': 'pt-BR'});
+          log('TTS voz selecionada: $melhorVoz');
+        }
+      }
+    } catch (e) {
+      log('TTS voz fallback genérico: $e');
+    }
   }
 
   Future<void> _falarComPresenca(String textoRaw) async {
@@ -71,6 +109,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
         await _falarNativo(cleanText);
       }
     } else {
+      // ElevenLabs falhou (429 ou erro) — fallback imediato para TTS nativo
       await _falarNativo(cleanText);
     }
   }
@@ -173,8 +212,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.add_circle_outline,
-                color: Colors.black87),
+            icon: const Icon(Icons.add_circle_outline, color: Colors.black87),
             onPressed: () {},
           ),
         ],
