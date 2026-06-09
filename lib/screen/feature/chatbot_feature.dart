@@ -81,22 +81,26 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
         if (audioBytes != null && audioBytes.isNotEmpty) {
           log('✅ Áudio ElevenLabs recebido: ${audioBytes.length} bytes');
           
-          // Toca diretamente usando BytesAudioSource sem salvar arquivo
           try {
             await _ttsPlayer.stop();
-            final source = BytesAudioSource(audioBytes);
-            await _ttsPlayer.setAudioSource(source);
+            // CORREÇÃO: Usa setAudioSource com Stream ou salva arquivo
+            final tempDir = await getTemporaryDirectory();
+            final tempFile = File('${tempDir.path}/eleven_${DateTime.now().millisecondsSinceEpoch}.mp3');
+            await tempFile.writeAsBytes(audioBytes);
+            
+            await _ttsPlayer.setFilePath(tempFile.path);
             await _ttsPlayer.play();
             
             _playerSub = _ttsPlayer.playerStateStream.listen((state) {
               if (state.processingState == ProcessingState.completed) {
+                tempFile.delete();
                 if (mounted) setState(() => _isSpeaking = false);
               }
             });
             log('✅ ElevenLabs: tocando com sucesso');
             return;
           } catch (e) {
-            log('❌ Erro no BytesAudioSource: $e');
+            log('❌ Erro ao tocar ElevenLabs: $e');
           }
         } else {
           log('⚠️ ElevenLabs: retornou null ou vazio');
