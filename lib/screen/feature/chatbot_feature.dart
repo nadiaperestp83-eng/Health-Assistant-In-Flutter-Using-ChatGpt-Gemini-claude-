@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../controller/chat_controller.dart';
@@ -14,25 +13,6 @@ import '../../elevenlabs_service.dart';
 import '../../helper/global.dart';
 import '../../helper/my_dialog.dart';
 import '../../widget/message_card.dart';
-
-// Igual ao tutorial — bytes direto no just_audio
-class _BytesAudioSource extends StreamAudioSource {
-  final List<int> bytes;
-  _BytesAudioSource(this.bytes);
-
-  @override
-  Future<StreamAudioResponse> request([int? start, int? end]) async {
-    start ??= 0;
-    end ??= bytes.length;
-    return StreamAudioResponse(
-      sourceLength: bytes.length,
-      contentLength: end - start,
-      offset: start,
-      stream: Stream.value(bytes.sublist(start, end)),
-      contentType: 'audio/mpeg',
-    );
-  }
-}
 
 class ChatBotFeature extends StatefulWidget {
   const ChatBotFeature({super.key});
@@ -91,14 +71,15 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
     // ===== PRIORIDADE 1: ElevenLabs =====
     try {
-      final List<int>? bytes = await ElevenLabsService.sintetizar(cleanText);
+      final String? filePath = await ElevenLabsService.sintetizar(cleanText);
 
-      if (bytes != null && bytes.isNotEmpty) {
-        await _ttsPlayer.setAudioSource(_BytesAudioSource(bytes));
+      if (filePath != null && filePath.isNotEmpty) {
+        await _ttsPlayer.setFilePath(filePath);
         await _ttsPlayer.play();
 
         _playerSub = _ttsPlayer.playerStateStream.listen((state) {
           if (state.processingState == ProcessingState.completed) {
+            File(filePath).delete().catchError((_) {});
             if (mounted) setState(() => _isSpeaking = false);
           }
         });
