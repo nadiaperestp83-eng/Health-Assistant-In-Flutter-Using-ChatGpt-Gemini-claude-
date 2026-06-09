@@ -1,42 +1,38 @@
-import 'dart:convert';
-import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
+import 'package:elevenlabs_flutter/elevenlabs_flutter.dart';
 import 'package:ai_assistant/helper/global.dart';
 
 class ElevenLabsService {
   static const String _voiceId = '4za2kOXGgUd57HRSQ1fn';
 
-  static Future<String?> sintetizar(String text) async {
-    final String key = elevenlabsKey.trim();
-    if (key.isEmpty) return null;
+  static final _api = ElevenLabsAPI();
+  static bool _initialized = false;
 
+  static Future<void> _init() async {
+    if (_initialized) return;
+    await _api.init(
+      baseUrl: 'https://api.elevenlabs.io',
+      apiKey: elevenlabsKey.trim(),
+    );
+    _initialized = true;
+  }
+
+  static Future<List<int>?> sintetizar(String text) async {
     try {
-      final response = await http.post(
-        Uri.parse('https://api.elevenlabs.io/v1/text-to-speech/$_voiceId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'xi-api-key': key,
-        },
-        body: jsonEncode({
-          'text': text,
-          'model_id': 'eleven_multilingual_v2',
-          'voice_settings': {
-            'stability': 0.45,
-            'similarity_boost': 0.80,
-          }
-        }),
+      await _init();
+      final result = await _api.synthesize(
+        TextToSpeechRequest(
+          text: text,
+          voiceId: _voiceId,
+          modelId: 'eleven_multilingual_v2',
+          voiceSettings: VoiceSettings(
+            stability: 0.45,
+            similarityBoost: 0.80,
+          ),
+        ),
       );
-
-      if (response.statusCode == 200) {
-        final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/tts_output.mp3');
-        await file.writeAsBytes(response.bodyBytes);
-        return file.path;
-      }
-
-      return null;
+      return result;
     } catch (e) {
+      print('ElevenLabs erro: $e');
       return null;
     }
   }
