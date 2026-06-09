@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../controller/chat_controller.dart';
@@ -13,6 +14,25 @@ import '../../elevenlabs_service.dart';
 import '../../helper/global.dart';
 import '../../helper/my_dialog.dart';
 import '../../widget/message_card.dart';
+
+// Igual ao tutorial — bytes direto no just_audio
+class _BytesAudioSource extends StreamAudioSource {
+  final List<int> bytes;
+  _BytesAudioSource(this.bytes);
+
+  @override
+  Future<StreamAudioResponse> request([int? start, int? end]) async {
+    start ??= 0;
+    end ??= bytes.length;
+    return StreamAudioResponse(
+      sourceLength: bytes.length,
+      contentLength: end - start,
+      offset: start,
+      stream: Stream.value(bytes.sublist(start, end)),
+      contentType: 'audio/mpeg',
+    );
+  }
+}
 
 class ChatBotFeature extends StatefulWidget {
   const ChatBotFeature({super.key});
@@ -45,12 +65,10 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     await _tts.setSpeechRate(0.55);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
-
     try {
       await _tts.setEngine("com.google.android.tts");
-      log('✅ Motor Google TTS configurado');
     } catch (e) {
-      log('⚠️ Não foi possível setar engine Google: $e');
+      log('⚠️ Engine Google TTS: $e');
     }
   }
 
@@ -72,41 +90,25 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     setState(() => _isSpeaking = true);
 
     // ===== PRIORIDADE 1: ElevenLabs =====
-    if (elevenlabsKey.trim().isNotEmpty) {
-      try {
-        final String? filePath = await ElevenLabsService.sintetizar(cleanText);
+    try {
+      final List<int>? bytes = await ElevenLabsService.sintetizar(cleanText);
 
-        if (filePath != null && filePath.isNotEmpty) {
-          log('✅ Áudio ElevenLabs recebido: $filePath');
+      if (bytes != null && bytes.isNotEmpty) {
+        await _ttsPlayer.setAudioSource(_BytesAudioSource(bytes));
+        await _ttsPlayer.play();
 
-          try {
-            await _ttsPlayer.stop();
-            await _ttsPlayer.setFilePath(filePath);
-            await _ttsPlayer.play();
-
-            _playerSub = _ttsPlayer.playerStateStream.listen((state) {
-              if (state.processingState == ProcessingState.completed) {
-                File(filePath).delete().catchError((_) {});
-                if (mounted) setState(() => _isSpeaking = false);
-              }
-            });
-            log('✅ ElevenLabs: tocando com sucesso');
-            return;
-          } catch (e) {
-            log('❌ Erro ao tocar ElevenLabs: $e');
+        _playerSub = _ttsPlayer.playerStateStream.listen((state) {
+          if (state.processingState == ProcessingState.completed) {
+            if (mounted) setState(() => _isSpeaking = false);
           }
-        } else {
-          log('⚠️ ElevenLabs: retornou null ou vazio');
-        }
-      } catch (e) {
-        log('❌ ElevenLabs erro: $e');
+        });
+        return;
       }
-    } else {
-      log('⚠️ ElevenLabs: chave vazia');
+    } catch (e) {
+      log('❌ ElevenLabs erro: $e');
     }
 
     // ===== FALLBACK: TTS Nativo =====
-    log('🎤 Usando fallback TTS nativo');
     await _tts.speak(cleanText);
     _tts.setCompletionHandler(() {
       if (mounted) setState(() => _isSpeaking = false);
@@ -229,8 +231,9 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
                     bottom: mq.height * .18,
                     left: 16,
                     right: 16),
-                children:
-                    _c.list.map<Widget>((e) => MessageCard(message: e)).toList(),
+                children: _c.list
+                    .map<Widget>((e) => MessageCard(message: e))
+                    .toList(),
               )),
         ],
       ),
