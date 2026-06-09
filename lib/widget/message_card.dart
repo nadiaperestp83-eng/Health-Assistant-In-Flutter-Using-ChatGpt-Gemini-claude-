@@ -9,7 +9,6 @@ import '../model/message.dart';
 
 class MessageCard extends StatelessWidget {
   final Message message;
-
   const MessageCard({super.key, required this.message});
 
   @override
@@ -63,12 +62,12 @@ class _BotMessageState extends State<_BotMessage> {
   StreamSubscription? _completeSub;
   bool _isPlaying = false;
 
-  // Sons de domínio público — CDN confiável, formato MP3
   static const _sons = [
-    'https://cdn.freesound.org/previews/531/531947_3797507-lq.mp3', // chuva leve
-    'https://cdn.freesound.org/previews/531/531948_3797507-lq.mp3', // floresta
-    'https://cdn.freesound.org/previews/316/316847_2653013-lq.mp3', // ondas do mar
-    'https://cdn.freesound.org/previews/200/200213_2394539-lq.mp3', // vento calmo
+    'sounds/chuva (1).mp3',
+    'sounds/pássaros.mp3.mp3',
+    'sounds/Coral Guarani Tenonderã - Pejukatu Xondaro'i (Música Indígena Guarani) - CineDoc Brasil (youtube).mp3',
+    'sounds/zumbido-da-noite.mp3',
+
   ];
 
   @override
@@ -81,20 +80,17 @@ class _BotMessageState extends State<_BotMessage> {
   Future<void> _ouvirSilencio() async {
     if (_isPlaying) {
       await _audioPlayer.stop();
-      _completeSub?.cancel();
+      await _completeSub?.cancel();
       if (mounted) setState(() => _isPlaying = false);
       return;
     }
 
-    final url = _sons[DateTime.now().millisecond % _sons.length];
+    final asset = _sons[DateTime.now().millisecond % _sons.length];
 
     try {
-      // Cancela listener anterior antes de criar novo
       await _completeSub?.cancel();
-
       await _audioPlayer.stop();
-      await _audioPlayer.play(UrlSource(url));
-
+      await _audioPlayer.play(AssetSource(asset));
       if (mounted) setState(() => _isPlaying = true);
 
       _completeSub = _audioPlayer.onPlayerComplete.listen((_) {
