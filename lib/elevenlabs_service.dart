@@ -35,9 +35,9 @@ class ElevenLabsService {
         await file.writeAsBytes(response.bodyBytes);
         return file.path;
       }
-      return null;
+      throw Exception('ElevenLabs ${response.statusCode}: ${response.body}');
     } catch (e) {
-      return null;
+      throw Exception('ElevenLabs falhou: $e');
     }
   }
 }
