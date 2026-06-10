@@ -33,7 +33,6 @@ class TtsService {
       final configPath = p.join(dir.path, _configFile);
       final tokensPath = p.join(dir.path, _tokensFile);
 
-      // Copia assets → armazenamento interno na primeira execução
       await _copiarAsset(_modelAsset,  modelPath);
       await _copiarAsset(_configAsset, configPath);
       await _copiarAsset(_tokensAsset, tokensPath);
@@ -44,7 +43,7 @@ class TtsService {
             model: modelPath,
             lexicon: '',
             tokens: tokensPath,
-            dataDir: '',          // espeak não é necessário para pt_BR-cadu
+            dataDir: '',
             noiseScale: 0.667,
             noiseScaleW: 0.8,
             lengthScale: 1.0,
@@ -61,45 +60,28 @@ class TtsService {
       _inicializado = true;
     } catch (e) {
       _inicializado = false;
-      throw Exception('❌ TtsService.inicializar falhou: $e');
+      throw Exception('❌ Piper inicializar: $e');
     }
   }
 
-  Future<void> falar(String texto) async {
+  Future<String> gerarAudio(String texto) async {
     if (!_inicializado) await inicializar();
 
-    try {
-      await _player.stop();
+    final audio = _tts!.generate(
+      text: texto,
+      sid: 0,
+      speed: 1.0,
+    );
 
-      final audio = _tts!.generate(
-        text: texto,
-        sid: 0,
-        speed: 1.0,
-      );
-
-      if (audio.samples.isEmpty) {
-        throw Exception('modelo retornou áudio vazio');
-      }
-
-      final tmpDir  = await getTemporaryDirectory();
-      final arquivo = File(p.join(tmpDir.path, 'cadu_tts.wav'));
-      await _salvarWav(arquivo, audio.samples, audio.sampleRate);
-
-      await _player.setFilePath(arquivo.path);
-      await _player.play();
-
-      // Aguarda a reprodução terminar
-      await _player.processingStateStream.firstWhere(
-        (s) => s == ProcessingState.completed,
-      );
-
-      await arquivo.delete();
-    } catch (e) {
-      throw Exception('❌ TtsService.falar falhou: $e');
+    if (audio.samples.isEmpty) {
+      throw Exception('Piper retornou áudio vazio');
     }
-  }
 
-  Future<void> parar() async => _player.stop();
+    final tmpDir  = await getTemporaryDirectory();
+    final arquivo = File(p.join(tmpDir.path, 'cadu_tts.wav'));
+    await _salvarWav(arquivo, audio.samples, audio.sampleRate);
+    return arquivo.path;
+  }
 
   void dispose() {
     _tts?.free();
@@ -107,8 +89,6 @@ class TtsService {
     _inicializado = false;
     _tts = null;
   }
-
-  // ── helpers ────────────────────────────────────────────────
 
   Future<void> _copiarAsset(String assetPath, String destino) async {
     if (await File(destino).exists()) return;
@@ -120,14 +100,10 @@ class TtsService {
     await File(destino).writeAsBytes(bytes, flush: true);
   }
 
-  Future<void> _salvarWav(
-    File arquivo,
-    List<double> samples,
-    int sampleRate,
-  ) async {
-    final pcm     = _floatParaPcm16(samples);
-    final wavData = _montarCabecalhoWav(pcm, sampleRate);
-    await arquivo.writeAsBytes(wavData, flush: true);
+  Future<void> _salvarWav(File arquivo, List<double> samples, int sampleRate) async {
+    final pcm = _floatParaPcm16(samples);
+    final wav = _montarWav(pcm, sampleRate);
+    await arquivo.writeAsBytes(wav, flush: true);
   }
 
   List<int> _floatParaPcm16(List<double> samples) {
@@ -140,28 +116,19 @@ class TtsService {
     return out;
   }
 
-  List<int> _montarCabecalhoWav(List<int> pcm, int sampleRate) {
-    final dataSize = pcm.length;
+  List<int> _montarWav(List<int> pcm, int sampleRate) {
     final buf = <int>[];
-
-    void w32(int v) => buf.addAll([
-      v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF,
-    ]);
-    void w16(int v) => buf.addAll([v & 0xFF, (v >> 8) & 0xFF]);
+    void w32(int v) => buf.addAll([v&0xFF,(v>>8)&0xFF,(v>>16)&0xFF,(v>>24)&0xFF]);
+    void w16(int v) => buf.addAll([v&0xFF,(v>>8)&0xFF]);
     void str(String s) => buf.addAll(s.codeUnits);
-
-    str('RIFF');  w32(36 + dataSize);
+    str('RIFF'); w32(36 + pcm.length);
     str('WAVE');
-    str('fmt ');  w32(16);
-    w16(1);           // PCM
-    w16(1);           // mono
-    w32(sampleRate);
-    w32(sampleRate * 2); // byteRate
-    w16(2);           // blockAlign
-    w16(16);          // bitsPerSample
-    str('data');  w32(dataSize);
+    str('fmt '); w32(16);
+    w16(1); w16(1);
+    w32(sampleRate); w32(sampleRate * 2);
+    w16(2); w16(16);
+    str('data'); w32(pcm.length);
     buf.addAll(pcm);
-
     return buf;
   }
 }
