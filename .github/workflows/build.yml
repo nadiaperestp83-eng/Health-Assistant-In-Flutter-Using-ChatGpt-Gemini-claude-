@@ -22,6 +22,12 @@ jobs:
         with:
           flutter-version: '3.44.1'
 
+      - name: Baixar modelo Piper Cadu
+        run: |
+          wget --no-check-certificate \
+            "https://drive.google.com/uc?export=download&id=1msHudgSRwvrHj6LRSyrdXqAdLfJvcqJS" \
+            -O assets/voices/pt_BR-cadu-medium.onnx
+
       - name: Verificar antes
         run: |
           echo "=== ANTES DA SUBSTITUIÇÃO ==="
