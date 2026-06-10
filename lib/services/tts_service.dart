@@ -1,5 +1,3 @@
-// lib/services/tts_service.dart
-
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -18,6 +16,7 @@ class TtsService {
 
   static const _configAsset = 'assets/voices/pt_BR-cadu-medium.onnx.json';
   static const _tokensAsset = 'assets/voices/tokens.txt';
+  static const _modelAsset = 'assets/voices/pt_BR-cadu-medium.onnx';
 
   static const _modelFile   = 'pt_BR-cadu-medium.onnx';
   static const _configFile  = 'pt_BR-cadu-medium.onnx.json';
@@ -32,11 +31,8 @@ class TtsService {
       final configPath = p.join(dir.path, _configFile);
       final tokensPath = p.join(dir.path, _tokensFile);
 
-      // Arquivos pequenos: copia via rootBundle normalmente
       await _copiarAsset(_configAsset, configPath);
       await _copiarAsset(_tokensAsset, tokensPath);
-
-      // .onnx grande: copia via flutter_assets no filesystem do APK
       await _copiarModeloGrande(modelPath);
 
       final config = OfflineTtsConfig(
@@ -57,93 +53,55 @@ class TtsService {
         ruleFsts: '',
       );
 
-      _tts = OfflineTts(config);
+      await SherpaOnnx.initOfflineTts(config);
+      _tts = SherpaOnnx.offlineTts;
       _inicializado = true;
+      print('✅ Piper Cadu inicializado');
     } catch (e) {
       _inicializado = false;
-      throw Exception('❌ Piper inicializar: $e');
+      print('❌ Piper erro: $e');
+      rethrow;
     }
   }
 
   Future<void> _copiarModeloGrande(String destino) async {
-    if (await File(destino).exists()) {
-      final size = await File(destino).length();
-      if (size > 1000000) return; // já copiado e válido
-    }
-
-    // Lê em chunks via rootBundle para evitar estouro de memória
-    final ByteData data;
-    try {
-      data = await rootBundle.load('assets/voices/pt_BR-cadu-medium.onnx');
-    } catch (e) {
-      throw Exception('Modelo .onnx não encontrado no bundle: $e');
-    }
-
-    final bytes = data.buffer.asUint8List(
-      data.offsetInBytes,
-      data.lengthInBytes,
-    );
-
-    final file = File(destino);
-    await file.parent.create(recursive: true);
-
-    // Escreve em chunks de 4MB para não travar UI
-    const chunkSize = 4 * 1024 * 1024;
-    final sink = file.openWrite();
-    for (var i = 0; i < bytes.length; i += chunkSize) {
-      final end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
-      sink.add(bytes.sublist(i, end));
-    }
-    await sink.flush();
-    await sink.close();
+    if (await File(destino).exists()) return;
+    final ByteData data = await rootBundle.load(_modelAsset);
+    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    await File(destino).writeAsBytes(bytes);
   }
 
   Future<void> _copiarAsset(String assetPath, String destino) async {
     if (await File(destino).exists()) return;
-    final data  = await rootBundle.load(assetPath);
-    final bytes = data.buffer.asUint8List(
-      data.offsetInBytes,
-      data.lengthInBytes,
-    );
-    await File(destino).writeAsBytes(bytes, flush: true);
+    final data = await rootBundle.load(assetPath);
+    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    await File(destino).writeAsBytes(bytes);
   }
 
   Future<String> gerarAudio(String texto) async {
     if (!_inicializado) await inicializar();
+    if (_tts == null) throw Exception('TTS não inicializado');
 
-    final audio = _tts!.generate(
-      text: texto,
-      sid: 0,
-      speed: 1.0,
-    );
+    final audio = _tts!.generate(text: texto, sid: 0, speed: 1.0);
+    if (audio.samples.isEmpty) throw Exception('Áudio vazio');
 
-    if (audio.samples.isEmpty) {
-      throw Exception('Piper retornou áudio vazio');
-    }
-
-    final tmpDir  = await getTemporaryDirectory();
-    final arquivo = File(p.join(tmpDir.path, 'cadu_tts.wav'));
+    final tmpDir = await getTemporaryDirectory();
+    final arquivo = File(p.join(tmpDir.path, 'piper_${DateTime.now().millisecondsSinceEpoch}.wav'));
     await _salvarWav(arquivo, audio.samples, audio.sampleRate);
     return arquivo.path;
-  }
-
-  void dispose() {
-    _tts?.free();
-    _player.dispose();
-    _inicializado = false;
-    _tts = null;
   }
 
   Future<void> _salvarWav(File arquivo, List<double> samples, int sampleRate) async {
     final pcm = _floatParaPcm16(samples);
     final wav = _montarWav(pcm, sampleRate);
-    await arquivo.writeAsBytes(wav, flush: true);
+    await arquivo.writeAsBytes(wav);
   }
 
   List<int> _floatParaPcm16(List<double> samples) {
     final out = <int>[];
     for (final s in samples) {
-      final v = (s * 32767.0).round().clamp(-32768, 32767);
+      int v = (s * 32767).round();
+      v = v.clamp(-32768, 32767);
       out.add(v & 0xFF);
       out.add((v >> 8) & 0xFF);
     }
@@ -152,9 +110,10 @@ class TtsService {
 
   List<int> _montarWav(List<int> pcm, int sampleRate) {
     final buf = <int>[];
-    void w32(int v) => buf.addAll([v&0xFF,(v>>8)&0xFF,(v>>16)&0xFF,(v>>24)&0xFF]);
-    void w16(int v) => buf.addAll([v&0xFF,(v>>8)&0xFF]);
+    void w32(int v) => buf.addAll([v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF]);
+    void w16(int v) => buf.addAll([v & 0xFF, (v >> 8) & 0xFF]);
     void str(String s) => buf.addAll(s.codeUnits);
+    
     str('RIFF'); w32(36 + pcm.length);
     str('WAVE');
     str('fmt '); w32(16);
@@ -164,5 +123,11 @@ class TtsService {
     str('data'); w32(pcm.length);
     buf.addAll(pcm);
     return buf;
+  }
+
+  void dispose() {
+    _tts = null;
+    _inicializado = false;
+    _player.dispose();
   }
 }
