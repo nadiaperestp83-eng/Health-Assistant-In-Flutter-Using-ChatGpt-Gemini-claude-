@@ -53,7 +53,6 @@ class TtsService {
           provider: 'cpu',
         ),
         ruleFsts: '',
-        maxNumSentences: 1,
       );
 
       _tts = OfflineTts(config);
