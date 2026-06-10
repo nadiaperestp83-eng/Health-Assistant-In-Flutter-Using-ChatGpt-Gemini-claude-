@@ -14,33 +14,27 @@ class TtsService {
   final AudioPlayer _player = AudioPlayer();
   bool _inicializado = false;
 
-  static const _configAsset = 'assets/voices/pt_BR-cadu-medium.onnx.json';
-  static const _tokensAsset = 'assets/voices/tokens.txt';
   static const _modelAsset = 'assets/voices/pt_BR-cadu-medium.onnx';
-
-  static const _modelFile   = 'pt_BR-cadu-medium.onnx';
-  static const _configFile  = 'pt_BR-cadu-medium.onnx.json';
-  static const _tokensFile  = 'tokens.txt';
+  static const _tokensAsset = 'assets/voices/tokens.txt';
 
   Future<void> inicializar() async {
     if (_inicializado) return;
 
     try {
       final dir = await getApplicationSupportDirectory();
-      final modelPath  = p.join(dir.path, _modelFile);
-      final configPath = p.join(dir.path, _configFile);
-      final tokensPath = p.join(dir.path, _tokensFile);
+      final modelPath = p.join(dir.path, 'pt_BR-cadu-medium.onnx');
+      final tokensPath = p.join(dir.path, 'tokens.txt');
 
-      await _copiarAsset(_configAsset, configPath);
-      await _copiarAsset(_tokensAsset, tokensPath);
-      await _copiarModeloGrande(modelPath);
+      await _copiarArquivo(_modelAsset, modelPath);
+      await _copiarArquivo(_tokensAsset, tokensPath);
 
-      // Leitura do arquivo de configuração
-      final configJson = await File(configPath).readAsString();
+      // API CORRETA do sherpa_onnx
+      _tts = OfflineTts(
+        modelPath: modelPath,
+        tokensPath: tokensPath,
+        numThreads: 2,
+      );
       
-      final config = OfflineTtsConfig.fromJson(configJson);
-      
-      _tts = await OfflineTts.create(config);
       _inicializado = true;
       print('✅ Piper Cadu inicializado');
     } catch (e) {
@@ -50,17 +44,7 @@ class TtsService {
     }
   }
 
-  Future<void> _copiarModeloGrande(String destino) async {
-    if (await File(destino).exists()) {
-      final size = await File(destino).length();
-      if (size > 1000000) return;
-    }
-    final ByteData data = await rootBundle.load(_modelAsset);
-    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-    await File(destino).writeAsBytes(bytes);
-  }
-
-  Future<void> _copiarAsset(String assetPath, String destino) async {
+  Future<void> _copiarArquivo(String assetPath, String destino) async {
     if (await File(destino).exists()) return;
     final data = await rootBundle.load(assetPath);
     final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
@@ -71,17 +55,30 @@ class TtsService {
     if (!_inicializado) await inicializar();
     if (_tts == null) throw Exception('TTS não inicializado');
 
-    final audio = await _tts!.generate(texto);
-    if (audio == null || audio.isEmpty) throw Exception('Áudio vazio');
+    // API CORRETA para gerar áudio
+    final samples = _tts!.generate(texto);
+    
+    if (samples.isEmpty) throw Exception('Áudio vazio');
 
     final tmpDir = await getTemporaryDirectory();
     final arquivo = File(p.join(tmpDir.path, 'piper_${DateTime.now().millisecondsSinceEpoch}.wav'));
-    await arquivo.writeAsBytes(audio);
+    
+    // Converte samples para WAV
+    await _salvarWav(arquivo, samples, 16000);
     return arquivo.path;
   }
 
+  Future<void> _salvarWav(File arquivo, List<double> samples, int sampleRate) async {
+    final buffer = ByteData();
+    // Converte float para PCM16
+    for (final s in samples) {
+      final intVal = (s * 32767).round().clamp(-32768, 32767);
+      buffer.putInt16(intVal, Endian.little);
+    }
+    await arquivo.writeAsBytes(buffer.buffer.asUint8List());
+  }
+
   void dispose() {
-    _tts?.close();
     _tts = null;
     _inicializado = false;
     _player.dispose();
