@@ -22,11 +22,20 @@ jobs:
         with:
           flutter-version: '3.44.1'
 
-      - name: Baixar modelo Piper Cadu
+      - name: Baixar modelo Piper Cadu completo
         run: |
+          # Baixar o tarball completo do modelo (inclui .onnx, .onnx.json e espeak-ng-data)
           wget --no-check-certificate \
-            "https://drive.google.com/uc?export=download&id=1msHudgSRwvrHj6LRSyrdXqAdLfJvcqJS" \
-            -O assets/voices/pt_BR-cadu-medium.onnx
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-pt_BR-cadu-medium.tar.bz2" \
+            -O /tmp/cadu.tar.bz2
+          mkdir -p assets/voices
+          tar -xjf /tmp/cadu.tar.bz2 -C /tmp/
+          # Copiar arquivos necessários
+          cp /tmp/vits-piper-pt_BR-cadu-medium/pt_BR-cadu-medium.onnx assets/voices/
+          cp /tmp/vits-piper-pt_BR-cadu-medium/pt_BR-cadu-medium.onnx.json assets/voices/
+          cp /tmp/vits-piper-pt_BR-cadu-medium/tokens.txt assets/voices/
+          # Copiar espeak-ng-data inteiro
+          cp -r /tmp/vits-piper-pt_BR-cadu-medium/espeak-ng-data assets/voices/
 
       - name: Verificar antes
         run: |
