@@ -16,7 +16,6 @@ class TtsService {
   final AudioPlayer _player = AudioPlayer();
   bool _inicializado = false;
 
-  static const _modelAsset  = 'assets/voices/pt_BR-cadu-medium.onnx';
   static const _configAsset = 'assets/voices/pt_BR-cadu-medium.onnx.json';
   static const _tokensAsset = 'assets/voices/tokens.txt';
 
@@ -33,9 +32,12 @@ class TtsService {
       final configPath = p.join(dir.path, _configFile);
       final tokensPath = p.join(dir.path, _tokensFile);
 
-      await _copiarAsset(_modelAsset,  modelPath);
+      // Arquivos pequenos: copia via rootBundle normalmente
       await _copiarAsset(_configAsset, configPath);
       await _copiarAsset(_tokensAsset, tokensPath);
+
+      // .onnx grande: copia via flutter_assets no filesystem do APK
+      await _copiarModeloGrande(modelPath);
 
       final config = OfflineTtsConfig(
         model: OfflineTtsModelConfig(
@@ -63,6 +65,49 @@ class TtsService {
     }
   }
 
+  Future<void> _copiarModeloGrande(String destino) async {
+    if (await File(destino).exists()) {
+      final size = await File(destino).length();
+      if (size > 1000000) return; // já copiado e válido
+    }
+
+    // Lê em chunks via rootBundle para evitar estouro de memória
+    final ByteData data;
+    try {
+      data = await rootBundle.load('assets/voices/pt_BR-cadu-medium.onnx');
+    } catch (e) {
+      throw Exception('Modelo .onnx não encontrado no bundle: $e');
+    }
+
+    final bytes = data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
+    );
+
+    final file = File(destino);
+    await file.parent.create(recursive: true);
+
+    // Escreve em chunks de 4MB para não travar UI
+    const chunkSize = 4 * 1024 * 1024;
+    final sink = file.openWrite();
+    for (var i = 0; i < bytes.length; i += chunkSize) {
+      final end = (i + chunkSize < bytes.length) ? i + chunkSize : bytes.length;
+      sink.add(bytes.sublist(i, end));
+    }
+    await sink.flush();
+    await sink.close();
+  }
+
+  Future<void> _copiarAsset(String assetPath, String destino) async {
+    if (await File(destino).exists()) return;
+    final data  = await rootBundle.load(assetPath);
+    final bytes = data.buffer.asUint8List(
+      data.offsetInBytes,
+      data.lengthInBytes,
+    );
+    await File(destino).writeAsBytes(bytes, flush: true);
+  }
+
   Future<String> gerarAudio(String texto) async {
     if (!_inicializado) await inicializar();
 
@@ -87,16 +132,6 @@ class TtsService {
     _player.dispose();
     _inicializado = false;
     _tts = null;
-  }
-
-  Future<void> _copiarAsset(String assetPath, String destino) async {
-    if (await File(destino).exists()) return;
-    final data  = await rootBundle.load(assetPath);
-    final bytes = data.buffer.asUint8List(
-      data.offsetInBytes,
-      data.lengthInBytes,
-    );
-    await File(destino).writeAsBytes(bytes, flush: true);
   }
 
   Future<void> _salvarWav(File arquivo, List<double> samples, int sampleRate) async {
