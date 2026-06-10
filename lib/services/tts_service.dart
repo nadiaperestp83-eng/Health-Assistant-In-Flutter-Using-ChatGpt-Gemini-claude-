@@ -9,6 +9,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 class TtsService {
   static final TtsService _instance = TtsService._internal();
   factory TtsService() => _instance;
+  static TtsService get instance => _instance;
   TtsService._internal();
 
   sherpa_onnx.OfflineTts? _piperTts;
@@ -18,7 +19,6 @@ class TtsService {
 
   Future<void> inicializar() async {
     try {
-      // ✅ FIX: inicializar bindings ANTES de qualquer uso do sherpa_onnx
       sherpa_onnx.initBindings();
 
       final dir = await getApplicationSupportDirectory();
@@ -44,7 +44,6 @@ class TtsService {
           provider: 'cpu',
         ),
         ruleFsts: '',
-        maxNumSentences: 1,
       );
 
       _piperTts = sherpa_onnx.OfflineTts(config);
@@ -55,7 +54,6 @@ class TtsService {
       _piperDisponivel = false;
     }
 
-    // Configurar fallback Flutter TTS
     await _flutterTts.setLanguage('pt-BR');
     await _flutterTts.setSpeechRate(0.5);
     await _flutterTts.setVolume(1.0);
@@ -68,7 +66,6 @@ class TtsService {
     final file = File(destino);
     await file.parent.create(recursive: true);
 
-    // Copiar em chunks de 4MB
     const chunkSize = 4 * 1024 * 1024;
     int offset = 0;
     final sink = file.openWrite();
@@ -81,67 +78,68 @@ class TtsService {
     print('✅ Modelo Piper copiado para: $destino');
   }
 
+  /// Gera áudio e retorna o path do arquivo WAV temporário
+  Future<String> gerarAudio(String texto) async {
+    if (!_piperDisponivel || _piperTts == null) {
+      throw Exception('Piper não inicializado');
+    }
+
+    final result = _piperTts!.generate(
+      text: texto,
+      sid: 0,
+      speed: 1.0,
+    );
+
+    if (result.samples.isEmpty) {
+      throw Exception('Piper retornou áudio vazio');
+    }
+
+    final pcm = Int16List(result.samples.length);
+    for (int i = 0; i < result.samples.length; i++) {
+      pcm[i] = (result.samples[i] * 32767).round().clamp(-32768, 32767);
+    }
+
+    final dir = await getApplicationSupportDirectory();
+    final wavFile = File(
+        '${dir.path}/tts_${DateTime.now().millisecondsSinceEpoch}.wav');
+    await _escreverWav(wavFile, pcm, result.sampleRate);
+    return wavFile.path;
+  }
+
   Future<void> falar(String texto) async {
     if (_piperDisponivel && _piperTts != null) {
       try {
-        final result = _piperTts!.generate(
-          text: texto,
-          sid: 0,
-          speed: 1.0,
-        );
-        if (result.samples.isNotEmpty) {
-          await _reproduzirPcm(result.samples, result.sampleRate);
-          return;
-        }
+        final path = await gerarAudio(texto);
+        await _audioPlayer.setFilePath(path);
+        await _audioPlayer.play();
+        return;
       } catch (e) {
         print('❌ Piper erro: $e');
       }
     }
-
-    // Fallback ElevenLabs ou Flutter TTS (já existente no seu app)
     await _flutterTts.speak(texto);
   }
 
-  Future<void> _reproduzirPcm(
-      List<double> samples, int sampleRate) async {
-    // Converter float32 para PCM16
-    final pcm = Int16List(samples.length);
-    for (int i = 0; i < samples.length; i++) {
-      pcm[i] = (samples[i] * 32767).round().clamp(-32768, 32767);
-    }
-
-    final dir = await getApplicationSupportDirectory();
-    final wavFile = File('${dir.path}/tts_output.wav');
-    await _escreverWav(wavFile, pcm, sampleRate);
-
-    await _audioPlayer.setFilePath(wavFile.path);
-    await _audioPlayer.play();
-  }
-
-  Future<void> _escreverWav(
-      File file, Int16List pcm, int sampleRate) async {
+  Future<void> _escreverWav(File file, Int16List pcm, int sampleRate) async {
     final numSamples = pcm.length;
     final byteRate = sampleRate * 2;
     final dataSize = numSamples * 2;
 
     final header = ByteData(44);
-    // RIFF header
     header.setUint8(0, 0x52); header.setUint8(1, 0x49);
     header.setUint8(2, 0x46); header.setUint8(3, 0x46);
     header.setUint32(4, 36 + dataSize, Endian.little);
     header.setUint8(8, 0x57); header.setUint8(9, 0x41);
     header.setUint8(10, 0x56); header.setUint8(11, 0x45);
-    // fmt chunk
     header.setUint8(12, 0x66); header.setUint8(13, 0x6D);
     header.setUint8(14, 0x74); header.setUint8(15, 0x20);
     header.setUint32(16, 16, Endian.little);
-    header.setUint16(20, 1, Endian.little);  // PCM
-    header.setUint16(22, 1, Endian.little);  // mono
+    header.setUint16(20, 1, Endian.little);
+    header.setUint16(22, 1, Endian.little);
     header.setUint32(24, sampleRate, Endian.little);
     header.setUint32(28, byteRate, Endian.little);
     header.setUint16(32, 2, Endian.little);
     header.setUint16(34, 16, Endian.little);
-    // data chunk
     header.setUint8(36, 0x64); header.setUint8(37, 0x61);
     header.setUint8(38, 0x74); header.setUint8(39, 0x61);
     header.setUint32(40, dataSize, Endian.little);
