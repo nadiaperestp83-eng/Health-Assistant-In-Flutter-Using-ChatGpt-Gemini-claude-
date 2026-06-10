@@ -4,7 +4,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart';
 import 'package:just_audio/just_audio.dart';
-import 'dart:typed_data';
 
 class TtsService {
   static TtsService? _instance;
@@ -29,14 +28,27 @@ class TtsService {
       await _copiarArquivo(_modelAsset, modelPath);
       await _copiarArquivo(_tokensAsset, tokensPath);
 
-      // CORREÇÃO: Usando os parâmetros esperados pela versão 1.13.2
+      // Configuração CORRETA para o sherpa_onnx
       final config = OfflineTtsConfig(
-        model: OfflineModelConfig(model: modelPath), // Ajustado de modelPath para model
-        tokens: tokensPath,
+        model: OfflineTtsModelConfig(
+          vits: OfflineTtsVitsModelConfig(
+            model: modelPath,
+            lexicon: '',
+            tokens: tokensPath,
+            dataDir: '',
+            noiseScale: 0.667,
+            noiseScaleW: 0.8,
+            lengthScale: 1.0,
+          ),
+          numThreads: 2,
+          debug: false,
+          provider: 'cpu',
+        ),
+        ruleFsts: '',
+        maxNumSentences: 1,
       );
-      
+
       _tts = OfflineTts(config);
-      
       _inicializado = true;
       print('✅ Piper Cadu inicializado');
     } catch (e) {
@@ -57,20 +69,21 @@ class TtsService {
     if (!_inicializado) await inicializar();
     if (_tts == null) throw Exception('TTS não inicializado');
 
-    // Em muitas versões, o generate retorna a lista de samples diretamente ou um objeto.
-    // Se ainda der erro aqui, tente: _tts!.generate(text: texto).samples
-    final samples = _tts!.generate(text: texto);
+    // generate retorna GeneratedAudio
+    final audio = _tts!.generate(text: texto);
     
-    if (samples.isEmpty) throw Exception('Áudio vazio');
+    // Verifica samples
+    if (audio.samples.isEmpty) throw Exception('Áudio vazio');
 
     final tmpDir = await getTemporaryDirectory();
     final arquivo = File(p.join(tmpDir.path, 'piper_${DateTime.now().millisecondsSinceEpoch}.wav'));
     
-    await _salvarWav(arquivo, samples);
+    // Salva usando os samples
+    await _salvarWav(arquivo, audio.samples, audio.sampleRate);
     return arquivo.path;
   }
 
-  Future<void> _salvarWav(File arquivo, List<double> samples) async {
+  Future<void> _salvarWav(File arquivo, List<double> samples, int sampleRate) async {
     final buffer = ByteData(samples.length * 2);
     for (int i = 0; i < samples.length; i++) {
       final intVal = (samples[i] * 32767).round().clamp(-32768, 32767);
@@ -80,9 +93,7 @@ class TtsService {
   }
 
   void dispose() {
-    // CORREÇÃO: A classe OfflineTts na sua versão não possui dispose() público.
-    // Basta apenas anular a referência.
-    _tts = null; 
+    _tts = null;
     _inicializado = false;
     _player.dispose();
   }
