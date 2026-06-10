@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -28,7 +29,6 @@ class TtsService {
       await _copiarArquivo(_modelAsset, modelPath);
       await _copiarArquivo(_tokensAsset, tokensPath);
 
-      // Configuração CORRETA para o sherpa_onnx
       final config = OfflineTtsConfig(
         model: OfflineTtsModelConfig(
           vits: OfflineTtsVitsModelConfig(
@@ -45,7 +45,7 @@ class TtsService {
           provider: 'cpu',
         ),
         ruleFsts: '',
-        maxNumSentences: 1,
+        // maxNumSentences REMOVIDO - não existe nesta versão
       );
 
       _tts = OfflineTts(config);
@@ -69,16 +69,13 @@ class TtsService {
     if (!_inicializado) await inicializar();
     if (_tts == null) throw Exception('TTS não inicializado');
 
-    // generate retorna GeneratedAudio
     final audio = _tts!.generate(text: texto);
     
-    // Verifica samples
     if (audio.samples.isEmpty) throw Exception('Áudio vazio');
 
     final tmpDir = await getTemporaryDirectory();
     final arquivo = File(p.join(tmpDir.path, 'piper_${DateTime.now().millisecondsSinceEpoch}.wav'));
     
-    // Salva usando os samples
     await _salvarWav(arquivo, audio.samples, audio.sampleRate);
     return arquivo.path;
   }
