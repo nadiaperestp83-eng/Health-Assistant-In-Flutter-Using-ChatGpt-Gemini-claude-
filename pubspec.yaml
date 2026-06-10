@@ -60,3 +60,4 @@ flutter:
     - assets/sounds/
     - assets/voices/pt_BR-cadu-medium.onnx.json
     - assets/voices/tokens.txt
+    - assets/voices/pt_BR-cadu-medium.onnx
