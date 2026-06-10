@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../controller/chat_controller.dart';
 import '../../elevenlabs_service.dart';
@@ -45,10 +47,12 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     await _tts.setSpeechRate(0.55);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
+    
     try {
       await _tts.setEngine("com.google.android.tts");
+      log('✅ Motor Google TTS configurado');
     } catch (e) {
-      log('⚠️ Engine Google TTS: $e');
+      log('⚠️ Não foi possível setar engine Google: $e');
     }
   }
 
@@ -69,44 +73,37 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
     setState(() => _isSpeaking = true);
 
-    // DEBUG — confirmar se a chave chegou em runtime
-    log('🔑 elevenlabsKey length: ${elevenlabsKey.trim().length}');
-    log('🔑 elevenlabsKey preview: ${elevenlabsKey.trim().isEmpty ? "(VAZIA)" : elevenlabsKey.trim().substring(0, elevenlabsKey.trim().length.clamp(0, 8))}...');
-
     // ===== PRIORIDADE 1: ElevenLabs =====
-    try {
-      final String filePath = await ElevenLabsService.sintetizar(cleanText)
-          .then((v) => v ?? (throw Exception('retornou null')));
-
-      await _ttsPlayer.setFilePath(filePath);
-      await _ttsPlayer.play();
-
-      _playerSub = _ttsPlayer.playerStateStream.listen((state) {
-        if (state.processingState == ProcessingState.completed) {
-          File(filePath).delete().catchError((_) {});
-          if (mounted) setState(() => _isSpeaking = false);
+    if (elevenlabsKey.trim().isNotEmpty) {
+      try {
+        final Uint8List? audioBytes = await ElevenLabsService.textToSpeech(cleanText);
+        
+        if (audioBytes != null && audioBytes.isNotEmpty) {
+          log('✅ Áudio ElevenLabs recebido: ${audioBytes.length} bytes');
+          
+          final tempDir = await getTemporaryDirectory();
+          final tempFile = File('${tempDir.path}/eleven_${DateTime.now().millisecondsSinceEpoch}.mp3');
+          await tempFile.writeAsBytes(audioBytes);
+          
+          await _ttsPlayer.setFilePath(tempFile.path);
+          await _ttsPlayer.play();
+          
+          _playerSub = _ttsPlayer.playerStateStream.listen((state) {
+            if (state.processingState == ProcessingState.completed) {
+              tempFile.delete();
+              if (mounted) setState(() => _isSpeaking = false);
+            }
+          });
+          log('✅ ElevenLabs: tocando com sucesso');
+          return;
         }
-      });
-      return;
-    } catch (e) {
-      log('❌ ElevenLabs erro: $e');
-      // TEMPORÁRIO — remover após identificar o problema
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '❌ $e',
-              style: const TextStyle(fontSize: 12),
-            ),
-            backgroundColor: Colors.red[900],
-            duration: const Duration(seconds: 15),
-          ),
-        );
+      } catch (e) {
+        log('❌ ElevenLabs erro: $e');
       }
     }
 
     // ===== FALLBACK: TTS Nativo =====
-    log('🎤 Fallback TTS nativo');
+    log('🎤 Usando fallback TTS nativo');
     await _tts.speak(cleanText);
     _tts.setCompletionHandler(() {
       if (mounted) setState(() => _isSpeaking = false);
@@ -229,9 +226,8 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
                     bottom: mq.height * .18,
                     left: 16,
                     right: 16),
-                children: _c.list
-                    .map<Widget>((e) => MessageCard(message: e))
-                    .toList(),
+                children:
+                    _c.list.map<Widget>((e) => MessageCard(message: e)).toList(),
               )),
         ],
       ),
