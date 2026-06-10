@@ -1,5 +1,6 @@
+// lib/screen/feature/chat_bot_feature.dart
+
 import 'dart:async';
-import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -8,13 +9,13 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../controller/chat_controller.dart';
 import '../../elevenlabs_service.dart';
 import '../../helper/global.dart';
 import '../../helper/my_dialog.dart';
+import '../../services/tts_service.dart';
 import '../../widget/message_card.dart';
 
 class ChatBotFeature extends StatefulWidget {
@@ -37,41 +38,34 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
   bool _ttsEnabled = true;
   bool _isSpeaking = false;
 
-  // 1 = OpenAI Sage, 2 = ElevenLabs, 3 = Flutter TTS neural
+  // 1 = Piper Cadu (offline), 2 = ElevenLabs, 3 = Flutter TTS neural
   int _voiceMode = 1;
 
   @override
   void initState() {
     super.initState();
     _initTts();
+    // Pré-inicializa o Piper em background para primeira fala ser rápida
+    TtsService.instance.inicializar().catchError((e) {
+      log('⚠️ Piper pré-init: $e');
+    });
   }
 
   void _initTts() async {
-    // Tenta usar voz neural do Google TTS
     try {
       await _tts.setEngine("com.google.android.tts");
     } catch (e) {
       log('⚠️ Engine Google TTS: $e');
     }
-
     await _tts.setLanguage('pt-BR');
-
-    // Velocidade ligeiramente mais lenta que humano normal — soa mais natural
     await _tts.setSpeechRate(0.48);
-
-    // Volume máximo
     await _tts.setVolume(1.0);
-
-    // Pitch levemente abaixo do padrão — voz mais grave e humana (padrão é 1.0)
     await _tts.setPitch(0.88);
 
-    // Tenta selecionar voz neural pt-BR se disponível
     try {
       final voices = await _tts.getVoices;
       if (voices != null) {
         final voiceList = List<Map>.from(voices);
-
-        // Prioridade: voz neural pt-BR
         final neural = voiceList.where((v) {
           final name = (v['name'] ?? '').toString().toLowerCase();
           final locale = (v['locale'] ?? '').toString().toLowerCase();
@@ -89,12 +83,10 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
           });
           log('✅ Voz neural selecionada: ${neural.first['name']}');
         } else {
-          // Fallback: qualquer voz pt-BR
           final ptbr = voiceList.where((v) {
             final locale = (v['locale'] ?? '').toString().toLowerCase();
             return locale.contains('pt-br') || locale.contains('pt_br');
           }).toList();
-
           if (ptbr.isNotEmpty) {
             await _tts.setVoice({
               'name': ptbr.first['name'],
@@ -107,33 +99,6 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     } catch (e) {
       log('⚠️ Seleção de voz: $e');
     }
-  }
-
-  Future<String?> _openAiTts(String text) async {
-    final String key = openaiKey.trim();
-    if (key.isEmpty) throw Exception('openaiKey vazia');
-
-    final response = await http.post(
-      Uri.parse('https://api.openai.com/v1/audio/speech'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $key',
-      },
-      body: jsonEncode({
-        'model': 'tts-1',
-        'input': text,
-        'voice': 'sage',
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/openai_tts.mp3');
-      await file.writeAsBytes(response.bodyBytes);
-      return file.path;
-    }
-
-    throw Exception('OpenAI TTS HTTP ${response.statusCode}: ${response.body}');
   }
 
   Future<void> _falarComPresenca(String textoRaw) async {
@@ -153,18 +118,18 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
 
     setState(() => _isSpeaking = true);
 
-    // ===== VOZ 1: OpenAI Sage =====
+    // ===== VOZ 1: Piper Cadu (offline) =====
     if (_voiceMode == 1) {
       try {
-        log('🎙️ Tentando OpenAI Sage...');
-        final path = await _openAiTts(cleanText);
-        await _tocarArquivo(path!);
+        log('🎙️ Piper Cadu...');
+        final path = await TtsService.instance.gerarAudio(cleanText);
+        await _tocarArquivo(path);
         return;
       } catch (e) {
-        log('❌ OpenAI TTS erro: $e');
+        log('❌ Piper erro: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('❌ OpenAI: $e',
+            content: Text('❌ Piper: $e',
                 style: const TextStyle(fontSize: 12)),
             backgroundColor: Colors.red[900],
             duration: const Duration(seconds: 10),
@@ -271,13 +236,12 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('Escolher voz',
-                  style:
-                      TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
               const SizedBox(height: 16),
               _voiceTile(
                 icon: Icons.spatial_audio_rounded,
-                title: 'Voz 1 — OpenAI Sage',
-                subtitle: 'Masculina calma, neural premium',
+                title: 'Voz 1 — Piper Cadu (offline)',
+                subtitle: 'Masculina pt-BR, neural offline',
                 mode: 1,
                 setModalState: setModalState,
               ),
@@ -323,8 +287,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
         child: Icon(icon,
             color: selected ? const Color(0xFF6B8EFF) : Colors.grey),
       ),
-      title:
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
       subtitle: Text(subtitle),
       trailing: selected
           ? const Icon(Icons.check_circle, color: Color(0xFF6B8EFF))
@@ -344,6 +307,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
     _stt.stop();
     _player.dispose();
     _ttsPlayer.dispose();
+    TtsService.instance.dispose();
     super.dispose();
   }
 
@@ -379,8 +343,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
             onTap: _mostrarSeletorVoz,
             child: Container(
               margin: const EdgeInsets.only(right: 4),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: const Color(0xFF6B8EFF).withOpacity(0.12),
                 borderRadius: BorderRadius.circular(20),
@@ -424,8 +387,7 @@ class _ChatBotFeatureState extends State<ChatBotFeature> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.add_circle_outline,
-                color: Colors.black87),
+            icon: const Icon(Icons.add_circle_outline, color: Colors.black87),
             onPressed: () {},
           ),
         ],
