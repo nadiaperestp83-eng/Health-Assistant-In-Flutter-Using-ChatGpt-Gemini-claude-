@@ -22,10 +22,27 @@ class TtsService {
       sherpa_onnx.initBindings();
 
       final dir = await getApplicationSupportDirectory();
-      final modelPath = '${dir.path}/pt_BR-cadu-medium.onnx';
+      final voicesDir = '${dir.path}/voices';
+      await Directory(voicesDir).create(recursive: true);
+
+      final modelPath = '$voicesDir/pt_BR-cadu-medium.onnx';
+      final dataDirPath = '$voicesDir/espeak-ng-data';
 
       if (!File(modelPath).existsSync()) {
-        await _copiarModeloDoAsset(modelPath);
+        await _copiarAsset(
+            'assets/voices/pt_BR-cadu-medium.onnx', modelPath);
+      }
+      if (!File('$voicesDir/pt_BR-cadu-medium.onnx.json').existsSync()) {
+        await _copiarAsset(
+            'assets/voices/pt_BR-cadu-medium.onnx.json',
+            '$voicesDir/pt_BR-cadu-medium.onnx.json');
+      }
+      if (!File('$voicesDir/tokens.txt').existsSync()) {
+        await _copiarAsset(
+            'assets/voices/tokens.txt', '$voicesDir/tokens.txt');
+      }
+      if (!Directory(dataDirPath).existsSync()) {
+        await _copiarEspeakData(dataDirPath);
       }
 
       final config = sherpa_onnx.OfflineTtsConfig(
@@ -33,8 +50,8 @@ class TtsService {
           vits: sherpa_onnx.OfflineTtsVitsModelConfig(
             model: modelPath,
             lexicon: '',
-            tokens: '',
-            dataDir: '',
+            tokens: '$voicesDir/tokens.txt',
+            dataDir: dataDirPath,
             noiseScale: 0.667,
             noiseScaleW: 0.8,
             lengthScale: 1.0,
@@ -50,7 +67,7 @@ class TtsService {
       _piperDisponivel = true;
       print('✅ Piper Cadu inicializado com sucesso');
     } catch (e) {
-      print('⚠️ Piper indisponível, usando fallback: $e');
+      print('⚠️ Piper indisponível: $e');
       _piperDisponivel = false;
     }
 
@@ -60,12 +77,11 @@ class TtsService {
     await _flutterTts.setPitch(1.0);
   }
 
-  Future<void> _copiarModeloDoAsset(String destino) async {
-    final byteData = await rootBundle.load('assets/voices/pt_BR-cadu-medium.onnx');
+  Future<void> _copiarAsset(String assetPath, String destino) async {
+    final byteData = await rootBundle.load(assetPath);
     final buffer = byteData.buffer;
     final file = File(destino);
     await file.parent.create(recursive: true);
-
     const chunkSize = 4 * 1024 * 1024;
     int offset = 0;
     final sink = file.openWrite();
@@ -75,30 +91,37 @@ class TtsService {
       offset = end;
     }
     await sink.close();
-    print('✅ Modelo Piper copiado para: $destino');
   }
 
-  /// Gera áudio e retorna o path do arquivo WAV temporário
+  Future<void> _copiarEspeakData(String destDirPath) async {
+    // Listar e copiar todos os arquivos do espeak-ng-data via AssetManifest
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    final keys = manifest.listAssets().where(
+        (k) => k.startsWith('assets/voices/espeak-ng-data/'));
+    for (final key in keys) {
+      final relative = key.replaceFirst('assets/voices/espeak-ng-data/', '');
+      final destFile = '$destDirPath/$relative';
+      await _copiarAsset(key, destFile);
+    }
+    print('✅ espeak-ng-data copiado: ${keys.length} arquivos');
+  }
+
   Future<String> gerarAudio(String texto) async {
     if (!_piperDisponivel || _piperTts == null) {
       throw Exception('Piper não inicializado');
     }
-
     final result = _piperTts!.generate(
       text: texto,
       sid: 0,
       speed: 1.0,
     );
-
     if (result.samples.isEmpty) {
       throw Exception('Piper retornou áudio vazio');
     }
-
     final pcm = Int16List(result.samples.length);
     for (int i = 0; i < result.samples.length; i++) {
       pcm[i] = (result.samples[i] * 32767).round().clamp(-32768, 32767);
     }
-
     final dir = await getApplicationSupportDirectory();
     final wavFile = File(
         '${dir.path}/tts_${DateTime.now().millisecondsSinceEpoch}.wav');
@@ -121,10 +144,7 @@ class TtsService {
   }
 
   Future<void> _escreverWav(File file, Int16List pcm, int sampleRate) async {
-    final numSamples = pcm.length;
-    final byteRate = sampleRate * 2;
-    final dataSize = numSamples * 2;
-
+    final dataSize = pcm.length * 2;
     final header = ByteData(44);
     header.setUint8(0, 0x52); header.setUint8(1, 0x49);
     header.setUint8(2, 0x46); header.setUint8(3, 0x46);
@@ -137,13 +157,12 @@ class TtsService {
     header.setUint16(20, 1, Endian.little);
     header.setUint16(22, 1, Endian.little);
     header.setUint32(24, sampleRate, Endian.little);
-    header.setUint32(28, byteRate, Endian.little);
+    header.setUint32(28, sampleRate * 2, Endian.little);
     header.setUint16(32, 2, Endian.little);
     header.setUint16(34, 16, Endian.little);
     header.setUint8(36, 0x64); header.setUint8(37, 0x61);
     header.setUint8(38, 0x74); header.setUint8(39, 0x61);
     header.setUint32(40, dataSize, Endian.little);
-
     final sink = file.openWrite();
     sink.add(header.buffer.asUint8List());
     sink.add(pcm.buffer.asUint8List());
